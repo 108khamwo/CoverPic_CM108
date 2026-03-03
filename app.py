@@ -11,7 +11,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 # ==========================================
-# 1. API Keys (Channel Secret: ...41679...)
+# 1. API Keys
 # ==========================================
 LINE_CHANNEL_ACCESS_TOKEN = 'A2I4k7+oJf6pGXFzvQCjzRr8Bpk2SZWDmBn3m0IXXzYj3q1EEjJAFZbsqaKXnN+n20j6EtKWQbxCoBUEED5D4pgW5BfMfesrSUCYz8IuS/EWc+beF9gGYsYI2RR7LOYdV7eDTrrbi9VcWyr5I7OsdQdB04t89/1O/w1cDnyilFU='
 LINE_CHANNEL_SECRET = 'b7ac02ec7b085a0e1a37841679ee32c4'
@@ -20,7 +20,7 @@ IMGBB_API_KEY = '66827500c20f99afb6779ba1730855b8'
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# แก้ไข URL กรอบรูปให้เป็นแบบ Direct Link (เอาตัวอักษรไทยออกและใช้ s0 เพื่อขนาดจริง)
+# ลิงก์กรอบรูป CM108
 FRAME_URL = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiOOtphYnEgsG_Q_5Ht_nM8h4hBJkTlJ0HvXwVOlixbfIkYC4y4NTIxcfl58PvyUi9Tj9azFCGGRCK3ysLAyX3yzXVHRmfbtsau733we6uQ3DE6csoMtWBMG2TNS2i-8aOtvIKTpzkCIyh3avLpViH74sW5SnwEZCkkToZeB4Q6VO-cxHafdputo5SmSxE/s0/frame_cm108.png"
 
 user_states = {}
@@ -52,16 +52,27 @@ def generate_cover(bg_image_bytes, text_lines):
         bg = bg.crop((0, top, base_width, top + base_height))
     canvas.paste(bg, (0, 0))
     
-    # 2. วาด Gradient สีดำด้านล่าง
+    # 2. วาด Gradient สีดำด้านล่าง (ยกให้สูงขึ้นเพื่อรองรับข้อความ)
     gradient = Image.new('RGBA', (base_width, base_height), (0,0,0,0))
     draw_grad = ImageDraw.Draw(gradient)
-    grad_h = 900  # ปรับให้เฟดดำเริ่มสูงขึ้นจากเดิม 740 เพื่อรองรับข้อความที่ยกขึ้น
+    grad_h = 900
     for y in range(base_height - grad_h, base_height):
         alpha = int(255 * ((y - (base_height - grad_h)) / grad_h))
         draw_grad.line([(0, y), (base_width, y)], fill=(0, 0, 0, alpha))
     canvas = Image.alpha_composite(canvas.convert('RGBA'), gradient)
     
-    # 3. จัดการฟอนต์
+    # 3. วางกรอบรูป CM108 (ต้องวางก่อนวาดตัวหนังสือ!)
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        resp = requests.get(FRAME_URL, headers=headers, timeout=15)
+        if resp.status_code == 200:
+            fr = Image.open(BytesIO(resp.content)).convert("RGBA")
+            fr = fr.resize((base_width, base_height), Image.Resampling.LANCZOS)
+            canvas = Image.alpha_composite(canvas, fr)
+    except Exception as e:
+        print(f"Frame Error: {e}")
+
+    # 4. จัดการฟอนต์และวาดข้อความ (วาดหลังสุดเพื่อให้อยู่บนสุด)
     try:
         font_path = "Prompt-Bold.ttf"
         f_large = ImageFont.truetype(font_path, 95)
@@ -74,47 +85,36 @@ def generate_cover(bg_image_bytes, text_lines):
 
     draw = ImageDraw.Draw(canvas)
     
-    # วาดข้อความ 3 บรรทัด
+    # บรรทัด 1 (ขยับขึ้นมาที่ 600)
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
         bbox = draw.textbbox((0, 0), t1, font=f_large)
         w = bbox[2] - bbox[0]
-        draw.text(((base_width-w)/2, 650), t1, font=f_large, fill="#4bfafc", stroke_width=5, stroke_fill="black") # ขยับขึ้นจาก 850
+        draw.text(((base_width-w)/2, 650), t1, font=f_large, fill="#4bfafc", stroke_width=5, stroke_fill="black")
     
+    # บรรทัด 2 (ขยับขึ้นมาที่ 710)
     t2 = text_lines[1] if len(text_lines) > 1 else ""
     if t2:
         bbox = draw.textbbox((0, 0), t2, font=f_large)
         w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
-        x, y = (base_width-w)/2, 760 # ขยับขึ้นจาก 960
+        x, y = (base_width-w)/2, 760
         draw.rounded_rectangle([(x-30, y-15), (x+w+30, y+h+35)], radius=16, fill="#0bc8fa")
         draw.text((x, y), t2, font=f_large, fill="#ffffff", stroke_width=5, stroke_fill="black")
         
+    # บรรทัด 3 (ขยับขึ้นมาที่ 850)
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
         bbox = draw.textbbox((0, 0), t3, font=f_med)
         w = bbox[2]-bbox[0]
-        draw.text(((base_width-w)/2, 900), t3, font=f_med, fill="#ff9012", stroke_width=3, stroke_fill="black") # ขยับขึ้นจาก 1100
+        draw.text(((base_width-w)/2, 900), t3, font=f_med, fill="#ff9012", stroke_width=3, stroke_fill="black")
 
-    # วันที่แบบไทย
+    # วันที่แบบไทย (ขยับขึ้นมาที่ 950)
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     now = datetime.now()
     d_str = f"- {now.day} {thai_m[now.month-1]} {now.year + 543} -"
     bbox = draw.textbbox((0, 0), d_str, font=f_date)
     w = bbox[2]-bbox[0]
-    draw.text(((base_width-w)/2, 1000), d_str, font=f_date, fill="white") # ขยับขึ้นจาก 1200
-    
-    # 4. วางกรอบรูป CM108 (เพิ่ม User-Agent เพื่อป้องกันการโดนบล็อก)
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        resp = requests.get(FRAME_URL, headers=headers, timeout=15)
-        if resp.status_code == 200:
-            fr = Image.open(BytesIO(resp.content)).convert("RGBA")
-            fr = fr.resize((base_width, base_height), Image.Resampling.LANCZOS)
-            canvas = Image.alpha_composite(canvas, fr)
-        else:
-            print(f"Frame Download Failed: Status {resp.status_code}")
-    except Exception as e:
-        print(f"Frame Error: {e}")
+    draw.text(((base_width-w)/2, 1000), d_str, font=f_date, fill="white")
     
     out = BytesIO()
     canvas.convert('RGB').save(out, format='JPEG', quality=95)
@@ -124,6 +124,11 @@ def upload_to_imgbb(img_bytes):
     url = f"https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}"
     r = requests.post(url, files={'image': img_bytes})
     return r.json()['data']['url']
+
+# เพิ่มเส้นทางหน้าแรก เพื่อแก้ปัญหา Render แจ้งเตือนเรื่อง Port
+@app.route("/")
+def home():
+    return "LINE Bot is running smoothly!"
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -161,5 +166,3 @@ def handle_image(event):
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
-
