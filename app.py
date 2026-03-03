@@ -55,7 +55,7 @@ def generate_cover(bg_image_bytes, text_lines):
     # 2. วาด Gradient สีดำด้านล่าง
     gradient = Image.new('RGBA', (base_width, base_height), (0,0,0,0))
     draw_grad = ImageDraw.Draw(gradient)
-    grad_h = 740
+    grad_h = 900  # ปรับให้เฟดดำเริ่มสูงขึ้นจากเดิม 740 เพื่อรองรับข้อความที่ยกขึ้น
     for y in range(base_height - grad_h, base_height):
         alpha = int(255 * ((y - (base_height - grad_h)) / grad_h))
         draw_grad.line([(0, y), (base_width, y)], fill=(0, 0, 0, alpha))
@@ -79,13 +79,13 @@ def generate_cover(bg_image_bytes, text_lines):
     if t1:
         bbox = draw.textbbox((0, 0), t1, font=f_large)
         w = bbox[2] - bbox[0]
-        draw.text(((base_width-w)/2, 850), t1, font=f_large, fill="#4bfafc", stroke_width=5, stroke_fill="black")
+        draw.text(((base_width-w)/2, 600), t1, font=f_large, fill="#4bfafc", stroke_width=5, stroke_fill="black") # ขยับขึ้นจาก 850
     
     t2 = text_lines[1] if len(text_lines) > 1 else ""
     if t2:
         bbox = draw.textbbox((0, 0), t2, font=f_large)
         w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
-        x, y = (base_width-w)/2, 960
+        x, y = (base_width-w)/2, 710 # ขยับขึ้นจาก 960
         draw.rounded_rectangle([(x-30, y-15), (x+w+30, y+h+35)], radius=16, fill="#0bc8fa")
         draw.text((x, y), t2, font=f_large, fill="#ffffff", stroke_width=5, stroke_fill="black")
         
@@ -93,7 +93,7 @@ def generate_cover(bg_image_bytes, text_lines):
     if t3:
         bbox = draw.textbbox((0, 0), t3, font=f_med)
         w = bbox[2]-bbox[0]
-        draw.text(((base_width-w)/2, 1100), t3, font=f_med, fill="#ff9012", stroke_width=3, stroke_fill="black")
+        draw.text(((base_width-w)/2, 850), t3, font=f_med, fill="#ff9012", stroke_width=3, stroke_fill="black") # ขยับขึ้นจาก 1100
 
     # วันที่แบบไทย
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
@@ -101,7 +101,7 @@ def generate_cover(bg_image_bytes, text_lines):
     d_str = f"- {now.day} {thai_m[now.month-1]} {now.year + 543} -"
     bbox = draw.textbbox((0, 0), d_str, font=f_date)
     w = bbox[2]-bbox[0]
-    draw.text(((base_width-w)/2, 1200), d_str, font=f_date, fill="white")
+    draw.text(((base_width-w)/2, 950), d_str, font=f_date, fill="white") # ขยับขึ้นจาก 1200
     
     # 4. วางกรอบรูป CM108 (เพิ่ม User-Agent เพื่อป้องกันการโดนบล็อก)
     try:
