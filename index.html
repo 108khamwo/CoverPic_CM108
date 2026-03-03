@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>News Cover Generator - CM108 (4:5)</title>
+    
+    <!-- Google Fonts: Prompt -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@100;200;300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        prompt: ['Prompt', 'sans-serif'],
+                    },
+                    colors: {
+                        newsBlue: '#00c0fa',
+                        newsDark: '#0f172a'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .text-shadow-heavy {
+            text-shadow: 0px 5px 15px rgba(0, 0, 0, 0.9), 0px 2px 6px rgba(0,0,0,0.8);
+        }
+        .footer-shadow {
+            text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+
+        .canvas-bg {
+            background-color: #f1f5f9;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* Custom Slider Styles */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+            cursor: pointer;
+            height: 36px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #00c0fa;
+            border: 2px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            margin-top: -8px;
+        }
+
+        input[type=number]::-webkit-inner-spin-button { display: none; }
+
+        body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Mobile Typing Zen Mode (Auto-shrink preview) */
+        @media (max-width: 1023px) {
+            #preview-wrapper {
+                transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            body.typing-mode #preview-wrapper {
+                height: 18vh !important;
+                min-height: 120px !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-prompt h-[100dvh] flex flex-col overflow-hidden">
+
+    <!-- Header (Fixed at top) -->
+    <header class="flex-none bg-white border-b border-slate-200 px-4 py-2.5 flex justify-between items-center shadow-sm z-50">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-newsBlue flex items-center justify-center rounded-lg shadow-md shadow-blue-500/20">
+                <i class="ph-bold ph-layout text-white text-base"></i>
+            </div>
+            <h1 class="text-[15px] font-bold uppercase tracking-tight">News Cover (4:5)</h1>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button id="undo-btn" onclick="undo()" class="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-400 disabled:opacity-30 transition" title="ย้อนกลับ">
+                <i class="ph-bold ph-arrow-u-up-left text-lg"></i>
+            </button>
+            <button onclick="exportImage()" class="bg-newsDark hover:bg-black text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 transition active:scale-95 shadow-md">
+                <i class="ph-bold ph-download-simple text-base"></i>
+                <span>บันทึกรูป</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main App Area -->
+    <main class="flex-grow flex flex-col lg:flex-row-reverse min-h-0 relative">
+        
+        <!-- Preview Area (Dynamic Height on Mobile) -->
+        <section id="preview-wrapper" class="flex-none h-[42vh] lg:h-full lg:flex-grow canvas-bg relative p-2 lg:p-6 flex justify-center items-center overflow-hidden z-20 border-b border-slate-200 lg:border-b-0 lg:border-l shadow-sm">
+            
+            <div id="scale-container" class="shadow-xl lg:shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-black relative transition-transform duration-300">
+                <!-- Base size set to 1080 x 1350 -->
+                <div id="capture-area" style="width: 1080px; height: 1350px; transform-origin: top left;"></div>
+            </div>
+
+            <div id="loading-overlay" class="absolute inset-0 bg-white/95 backdrop-blur-sm z-[100] flex flex-col items-center justify-center hidden">
+                <div class="w-12 h-12 lg:w-14 lg:h-14 border-4 border-slate-100 border-t-newsBlue rounded-full animate-spin"></div>
+                <p class="mt-4 font-bold text-slate-700 uppercase tracking-tighter text-sm lg:text-base">กำลังบันทึกภาพ...</p>
+                <p class="text-[10px] lg:text-xs text-slate-400 mt-1">ประมวลผลความละเอียด (1080x1350)</p>
+            </div>
+        </section>
+
+        <!-- Controls Area (Scrollable bottom/left) -->
+        <aside class="flex-grow lg:w-[450px] bg-white flex flex-col min-h-0 relative z-10">
+            
+            <!-- Mobile Sticky Tabs -->
+            <div class="flex border-b border-slate-200 bg-slate-50 flex-none sticky top-0 z-30 shadow-sm">
+                <button onclick="switchTab('text')" id="tab-btn-text" class="flex-1 py-3.5 text-[13px] font-bold text-newsBlue border-b-[3px] border-newsBlue bg-white transition-colors flex flex-col items-center gap-1">
+                    <i class="ph-fill ph-text-aa text-[18px]"></i> <span>พาดหัว</span>
+                </button>
+                <button onclick="switchTab('image')" id="tab-btn-image" class="flex-1 py-3.5 text-[13px] font-bold text-slate-400 border-b-[3px] border-transparent hover:bg-slate-100 transition-colors flex flex-col items-center gap-1">
+                    <i class="ph-fill ph-image text-[18px]"></i> <span>รูปภาพ</span>
+                </button>
+                <button onclick="switchTab('settings')" id="tab-btn-settings" class="flex-1 py-3.5 text-[13px] font-bold text-slate-400 border-b-[3px] border-transparent hover:bg-slate-100 transition-colors flex flex-col items-center gap-1">
+                    <i class="ph-fill ph-sliders-horizontal text-[18px]"></i> <span>ตั้งค่า</span>
+                </button>
+            </div>
+
+            <!-- Scrollable Content -->
+            <div id="scrollable-content" class="overflow-y-auto flex-grow p-4 lg:p-5 no-scrollbar bg-slate-50/50 pb-20">
+                
+                <!-- TAB 1: TEXT (พาดหัว) -->
+                <div id="tab-text" class="space-y-4 animate-fade-in">
+                    <div class="flex justify-between items-center mb-1">
+                        <p class="text-xs font-bold text-slate-500">แตะเพื่อพิมพ์ข้อความ</p>
+                        <button type="button" onclick="resetTextGlobal()" class="text-[10px] font-bold text-slate-400 bg-slate-200 hover:bg-red-100 hover:text-red-500 px-2.5 py-1.5 rounded-lg transition">ล้างข้อมูลใหม่</button>
+                    </div>
+                    <div id="lines-container" class="space-y-3"></div>
+                </div>
+
+                <!-- TAB 2: IMAGE (รูปภาพ) -->
+                <div id="tab-image" class="hidden space-y-4 animate-fade-in">
+                    <!-- Big Upload Buttons for Mobile -->
+                    <div class="flex flex-col gap-3">
+                        <button type="button" onclick="document.getElementById('bg-upload').click()" class="w-full bg-blue-50 border border-blue-200 py-4 rounded-2xl text-sm font-bold text-newsBlue hover:bg-blue-100 transition shadow-sm flex items-center justify-center gap-2">
+                            <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm">
+                                <i class="ph-bold ph-image text-xl"></i>
+                            </div>
+                            เปลี่ยนภาพข่าวหลัก
+                        </button>
+                        
+                        <button type="button" onclick="document.getElementById('logo-upload').click()" class="w-full bg-white border border-slate-200 py-3 rounded-2xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition shadow-sm flex items-center justify-center gap-2">
+                            <i class="ph-bold ph-shield-star text-lg"></i> เปลี่ยนโลโก้มุมซ้ายบน
+                        </button>
+                        
+                        <input type="file" id="bg-upload" accept="image/*" class="hidden">
+                        <input type="file" id="logo-upload" accept="image/*" class="hidden">
+                    </div>
+
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4 mt-2">
+                        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-700">เบลอพื้นหลัง</h4>
+                                <p class="text-[10px] text-slate-400 mt-0.5">เปิดเมื่อรูปภาพไม่เต็มกรอบ</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="bg-blur-toggle" class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:bg-newsBlue transition-all after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                        </div>
+                        <div class="pt-1">
+                            <label class="text-[11px] font-bold text-slate-500 block mb-2 flex justify-between">
+                                <span>ซูมภาพ (Scale)</span>
+                                <span id="bg-scale-val" class="text-newsBlue bg-blue-50 px-2 py-0.5 rounded">1.0</span>
+                            </label>
+                            <input type="range" id="bg-scale" min="0.1" max="5" step="0.01" value="1" class="w-full">
+                        </div>
+                        <div class="flex justify-center pt-2">
+                            <button type="button" onclick="resetBG()" class="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition w-full">รีเซ็ตขนาดภาพและตำแหน่ง</button>
+                        </div>
+                    </div>
+
+                    <!-- NEW: แบนเนอร์โฆษณา -->
+                    <div class="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm mt-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
+                        <h4 class="text-sm font-bold text-slate-700 mb-1 pl-2">แบนเนอร์โฆษณา (แถบด้านล่างสุด)</h4>
+                        <p class="text-[10px] text-slate-400 mb-3 pl-2">พื้นหลังสีขาว ใส่ได้สูงสุด 3 รูปภาพ</p>
+                        
+                        <div id="banner-preview-container" class="flex gap-3 mb-3 pl-2 flex-wrap empty:hidden">
+                            <!-- Banners will be rendered here -->
+                        </div>
+                        
+                        <div class="pl-2">
+                            <button type="button" onclick="document.getElementById('banner-upload').click()" class="w-full bg-slate-50 border border-slate-300 border-dashed py-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300 transition flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-plus-circle text-base"></i> เพิ่มรูปแบนเนอร์
+                            </button>
+                            <input type="file" id="banner-upload" accept="image/*" class="hidden" multiple onchange="handleBannerUpload(event)">
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- TAB 3: SETTINGS (ตั้งค่าเพิ่มเติม) -->
+                <div id="tab-settings" class="hidden space-y-5 animate-fade-in">
+                    
+                    <!-- Advanced Layout -->
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <h3 class="text-xs font-bold text-slate-800 mb-4 flex items-center gap-2"><i class="ph-fill ph-arrows-out-cardinal text-newsBlue text-lg"></i> ขยับตำแหน่งภาพ / โลโก้</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-500 block mb-1">เลื่อนซ้าย-ขวา (แกน X)</label>
+                                <input type="range" id="bg-x" min="-2500" max="2500" step="1" value="0" class="w-full">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-500 block mb-1">เลื่อนบน-ล่าง (แกน Y)</label>
+                                <input type="range" id="bg-y" min="-2500" max="2500" step="1" value="0" class="w-full">
+                            </div>
+                            <div class="pt-3 border-t border-slate-100">
+                                <label class="text-[10px] font-bold text-slate-500 block mb-1">ขนาดโลโก้มุมซ้ายบน</label>
+                                <input type="range" id="logo-size" min="50" max="500" value="120" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Text Settings -->
+                    <div class="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 shadow-sm">
+                        <h3 class="text-xs font-bold text-blue-800 mb-4 flex items-center gap-2"><i class="ph-fill ph-text-b text-newsBlue text-lg"></i> ตำแหน่งพาดหัว (ขยับทั้งกลุ่ม)</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <label class="text-[10px] font-bold text-blue-600">เลื่อนขึ้น-ลง</label>
+                                    <input type="number" id="text-y-num" value="0" class="text-[10px] font-bold text-blue-600 bg-white border border-blue-200 rounded px-1 text-right outline-none w-12 py-0.5">
+                                </div>
+                                <input type="range" id="text-y" min="-800" max="800" step="1" value="0" class="w-full accent-blue-500">
+                            </div>
+                            
+                            <div class="flex items-center justify-between border-t border-blue-200/50 pt-3">
+                                <label class="text-[11px] font-bold text-blue-600">ระยะห่างระหว่างบรรทัด (Gap)</label>
+                                <input type="number" id="line-gap" value="10" class="w-14 bg-white text-center text-sm font-bold outline-none text-newsBlue border border-blue-200 rounded-lg py-1 shadow-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer / Date -->
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                <i class="ph-fill ph-calendar-blank text-newsBlue text-lg"></i> แถบส่วนท้ายและวันที่
+                            </h3>
+                            <button type="button" onclick="resetFooter()" class="text-[10px] font-bold text-slate-400 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded transition">รีเซ็ต</button>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-500 mb-1.5 block">วันที่ (แสดงเหนือแถบสีฟ้า)</label>
+                                <input type="text" id="date-text" value="" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-newsBlue outline-none font-medium text-center transition">
+                            </div>
+                            <div class="h-px bg-slate-100"></div>
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="text-[10px] font-bold text-slate-500">เปิด/ปิด แถบสีฟ้าด้านล่างสุด</label>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="footer-toggle" checked class="sr-only peer">
+                                        <div class="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:bg-newsBlue transition-all after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                                    </label>
+                                </div>
+                                <input type="text" id="footer-text" value="เชียงใหม่ CM108 ข่าวเชียงใหม่ จังหวัดเชียงใหม่" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-newsBlue outline-none font-medium text-center transition">
+                            </div>
+                        </div>
+                    </div>
+
+                </div> <!-- End Tab 3 -->
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        // --- Helper: Get Thai Date ---
+        function getThaiDate() {
+            const months = [
+                "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+                "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+            ];
+            const d = new Date();
+            return `- ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543} -`;
+        }
+
+        // --- App State ---
+        let state = {
+            lines: [
+                // Text size scaled for 1080 width
+                { text: '"ฮุน มาเนต" ปฏิเสธ', color: '#ffffff', bgColor: '#00c0fa', size: 100, align: 'center', shadow: true, yOffset: 0, showAdv: false, visible: true, stroke: 0, shadowOffset: 0 },
+                { text: 'รัฐได้ผลประโยชน์ธุรกิจสีเทา', color: '#ffffff', bgColor: 'transparent', size: 75, align: 'center', shadow: true, yOffset: 0, showAdv: false, visible: true, stroke: 0, shadowOffset: 0 },
+                { text: 'ไม่รู้ "เฉิน จื้อ" เป็นสแกมเมอร์', color: '#ffffff', bgColor: 'transparent', size: 75, align: 'center', shadow: true, yOffset: 0, showAdv: false, visible: true, stroke: 0, shadowOffset: 0 }
+            ],
+            bg: { src: 'https://images.unsplash.com/photo-1555848962-6e79363ec58f?q=80&w=1080&auto=format&fit=crop', scale: 1, x: 0, y: 0, blur: false },
+            logo: { src: 'https://wsrv.nl/?url=blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiWb0t390_36xBU522fVm5qAlYsD4WO61Kj1QJ-LaXe1S4qHq9xhpR2DrKZgvJuR_SqLIZzV2C49RV97pUzxOXInxXceBgZim0-2Zcjzr8bKp8yRIIEMddNN7caNb5lX5m42-SImWuSd8UjGDNCIs5d6cRjiSolXxi31BbGQ7URBDV9I0t-vvJsn7cR7sk/s500/CM108%20logo.png&output=png' },
+            textPos: { y: 0 },
+            gap: 10, 
+            logoSize: 120, // Scaled down logo
+            date: { text: getThaiDate() },
+            footer: { active: true, text: 'เชียงใหม่ CM108 ข่าวเชียงใหม่ จังหวัดเชียงใหม่' },
+            banners: [] // New: Array of image URLs for bottom banner
+        };
+
+        let historyStack = [];
+        const defaultColors = [
+            { name: 'ฟ้า', hex: '#00c0fa' }, { name: 'ฟ้าอ่อน', hex: '#4bfafc' },
+            { name: 'ขาว', hex: '#ffffff' }, { name: 'เหลือง', hex: '#ffd700' }, { name: 'ดำ', hex: '#000000' }
+        ];
+
+        // --- Zen Typing Mode (Auto-shrink preview) ---
+        let resizeTimeout;
+        function handleInputFocus(idx) {
+            document.body.classList.add('typing-mode');
+            setTimeout(() => {
+                const el = document.getElementById(`line-card-${idx}`);
+                if(el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                handleResize(); 
+            }, 350); 
+        }
+
+        function handleInputBlur() {
+            setTimeout(() => {
+                const activeEl = document.activeElement;
+                if (!activeEl || activeEl.tagName !== 'TEXTAREA') {
+                    document.body.classList.remove('typing-mode');
+                    setTimeout(handleResize, 350);
+                }
+            }, 100);
+        }
+
+        // --- Tab Control ---
+        function switchTab(tabId) {
+            ['text', 'image', 'settings'].forEach(id => {
+                document.getElementById(`tab-${id}`).classList.add('hidden');
+                
+                const btn = document.getElementById(`tab-btn-${id}`);
+                btn.classList.remove('text-newsBlue', 'border-newsBlue', 'bg-white');
+                btn.classList.add('text-slate-400', 'border-transparent');
+                
+                if(id === tabId) {
+                    document.getElementById(`tab-${id}`).classList.remove('hidden');
+                    btn.classList.remove('text-slate-400', 'border-transparent');
+                    btn.classList.add('text-newsBlue', 'border-newsBlue', 'bg-white');
+                }
+            });
+            document.getElementById('scrollable-content').scrollTop = 0;
+        }
+
+        // --- History ---
+        function saveToHistory() {
+            historyStack.push(JSON.parse(JSON.stringify(state)));
+            if (historyStack.length > 30) historyStack.shift();
+            updateUndoButton();
+        }
+
+        function undo() {
+            if (historyStack.length === 0) return;
+            state = historyStack.pop();
+            renderAll();
+            syncInputs();
+            renderControls(); 
+            renderBannersUI();
+            updateUndoButton();
+        }
+
+        function updateUndoButton() {
+            const btn = document.getElementById('undo-btn');
+            if (btn) btn.disabled = historyStack.length === 0;
+        }
+
+        // --- Update Data ---
+        function updateLine(idx, key, val) {
+            const isTextOrAdvToggle = key === 'text' || key === 'showAdv';
+            const isSlider = key === 'size' || key === 'yOffset' || key === 'stroke' || key === 'shadowOffset';
+            
+            if (!isSlider && !isTextOrAdvToggle) saveToHistory();
+            
+            state.lines[idx][key] = val;
+            
+            if (isSlider) {
+                const rangeInput = document.getElementById(`range-${key}-${idx}`);
+                const numInput = document.getElementById(`num-${key}-${idx}`);
+                if (rangeInput) rangeInput.value = val;
+                if (numInput) numInput.value = val;
+            }
+            
+            if (key !== 'showAdv') renderAll();
+            
+            if (!isSlider && key !== 'text') {
+                renderControls(); 
+            }
+        }
+
+        function toggleAdvancedText(idx) {
+            updateLine(idx, 'showAdv', !state.lines[idx].showAdv);
+            if(state.lines[idx].showAdv) {
+                setTimeout(() => {
+                    document.getElementById(`line-card-${idx}`).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 50);
+            }
+        }
+
+        function resetBG() {
+            saveToHistory();
+            state.bg.scale = 1; state.bg.x = 0; state.bg.y = 0; state.bg.blur = false;
+            syncInputs(); renderAll();
+        }
+
+        function resetTextGlobal() {
+            saveToHistory();
+            const defConfigs = [
+                { color: '#ffffff', bgColor: '#00c0fa', size: 100, align: 'center', shadow: true, yOffset: 0, showAdv: false, visible: true, stroke: 0, shadowOffset: 0 },
+                { color: '#ffffff', bgColor: 'transparent', size: 75, align: 'center', shadow: true, yOffset: 0, showAdv: false, visible: true, stroke: 0, shadowOffset: 0 },
+                { color: '#ffffff', bgColor: 'transparent', size: 75, align: 'center', shadow: true, yOffset: 0, showAdv: false, visible: true, stroke: 0, shadowOffset: 0 }
+            ];
+            state.lines = state.lines.map((line, idx) => ({ ...defConfigs[idx], text: line.text, showAdv: false, visible: true }));
+            state.textPos.y = 0;
+            state.gap = 10;
+            syncInputs();
+            renderAll();
+            renderControls();
+        }
+
+        function resetFooter() {
+            saveToHistory();
+            state.footer = { active: true, text: 'เชียงใหม่ CM108 ข่าวเชียงใหม่ จังหวัดเชียงใหม่' };
+            state.date = { text: getThaiDate() }; 
+            syncInputs();
+            renderAll();
+        }
+
+        // --- Banner Logic ---
+        function handleBannerUpload(e) {
+            const files = Array.from(e.target.files);
+            if (state.banners.length + files.length > 3) {
+                alert("ใส่รูปแบนเนอร์ได้สูงสุด 3 รูปครับ");
+                return;
+            }
+            if (files.length > 0) saveToHistory();
+
+            files.forEach(file => {
+                if (state.banners.length < 3) {
+                    state.banners.push(URL.createObjectURL(file));
+                }
+            });
+            
+            e.target.value = ''; // reset input
+            renderBannersUI();
+            renderAll();
+        }
+
+        function removeBanner(idx) {
+            saveToHistory();
+            state.banners.splice(idx, 1);
+            renderBannersUI();
+            renderAll();
+        }
+
+        function renderBannersUI() {
+            const container = document.getElementById('banner-preview-container');
+            container.innerHTML = '';
+            state.banners.forEach((src, idx) => {
+                container.innerHTML += `
+                    <div class="relative w-20 h-16 rounded border border-slate-200 bg-slate-100 flex items-center justify-center group">
+                        <img src="${src}" class="max-w-full max-h-full object-contain p-1">
+                        <button onclick="removeBanner(${idx})" class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-sm transition transform opacity-0 group-hover:opacity-100 lg:opacity-100">✕</button>
+                    </div>
+                `;
+            });
+        }
+
+        // --- Rendering ---
+        function generateArtworkHTML(isExport = false, exportUnifiedBgSrc = null) {
+            let linesHTML = '';
+            
+            state.lines.forEach(line => {
+                if (!line.text.trim() || line.visible === false) return;
+                
+                const padding = line.bgColor !== 'transparent' ? 'padding: 10px 30px 4px 30px;' : 'padding: 0;';
+                const radius = line.bgColor !== 'transparent' ? 'border-radius: 14px;' : '';
+                
+                let shadowParts = [];
+                if (line.stroke > 0) {
+                    for (let r = 1; r <= line.stroke; r++) {
+                        let angleStep = Math.max(2, 360 / (Math.PI * 2 * r)); 
+                        for (let a = 0; a < 360; a += angleStep) {
+                            let rad = a * Math.PI / 180;
+                            let dx = (Math.cos(rad) * r).toFixed(1);
+                            let dy = (Math.sin(rad) * r).toFixed(1);
+                            shadowParts.push(`${dx}px ${dy}px 0px black`);
+                        }
+                    }
+                }
+                
+                if (line.shadow && line.shadowOffset > 0) {
+                    for (let d = 1; d <= line.shadowOffset; d += 1) { 
+                        shadowParts.push(`${d}px ${d}px 0px rgba(0,0,0,1)`); 
+                        if (line.stroke > 0) {
+                            for (let r = 1; r <= line.stroke; r += 1.5) { 
+                                let angleStep = Math.max(4, 360 / (Math.PI * r));
+                                for (let a = 0; a < 360; a += angleStep) { 
+                                    let rad = a * Math.PI / 180;
+                                    let dx = (Math.cos(rad) * r + d).toFixed(1);
+                                    let dy = (Math.sin(rad) * r + d).toFixed(1);
+                                    shadowParts.push(`${dx}px ${dy}px 0px rgba(0,0,0,1)`);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const customShadowStyle = shadowParts.length > 0 ? `text-shadow: ${shadowParts.join(', ')};` : '';
+                const shadowClass = (line.shadow && shadowParts.length === 0) ? 'text-shadow-heavy' : '';
+
+                let justify = 'flex-start';
+                if (line.align === 'center') justify = 'center';
+                if (line.align === 'right') justify = 'flex-end';
+
+                linesHTML += `
+                    <div style="display: flex; justify-content: ${justify}; width: 100%; transform: translateY(${line.yOffset}px);">
+                        <div class="highlight-box-export-fix" style="background-color: ${line.bgColor}; ${radius} ${padding} box-sizing: border-box;">
+                            <span class="${shadowClass}" style="color: ${line.color}; font-size: ${line.size}px; font-weight: 700; line-height: 1.15; display: block; white-space: pre-wrap; text-align: ${line.align}; ${customShadowStyle}">${line.text}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Banner height constant
+            const bannerHeight = 130;
+            const hasBanners = state.banners.length > 0;
+            const bottomOffset = hasBanners ? bannerHeight : 0;
+
+            // Generate Banner HTML
+            let bannerHTML = '';
+            if (hasBanners) {
+                let bannerImages = state.banners.map(src => `<img src="${src}" crossorigin="anonymous" style="max-height: 100px; max-width: 320px; object-fit: contain;">`).join('');
+                bannerHTML = `
+                    <div style="position: absolute; bottom: 0; left: 0; width: 1080px; height: ${bannerHeight}px; background-color: #ffffff; z-index: 40; display: flex; align-items: center; justify-content: center; gap: 40px; padding: 0 40px; box-sizing: border-box;">
+                        ${bannerImages}
+                    </div>
+                `;
+            }
+
+            const footerHTML = state.footer.active ? `
+                <div id="footer-bar-export" style="position: absolute; bottom: ${bottomOffset}px; left: 0; width: 1080px; height: 50px; background-color: #00c0fa; z-index: 30; display: flex; align-items: center; justify-content: center;">
+                    <span id="footer-text-export" class="footer-shadow" style="color: white; font-weight: 400; font-size: 24px; letter-spacing: 0.05em; padding-bottom: 2px;">
+                        ${state.footer.text}
+                    </span>
+                </div>
+            ` : '';
+
+            // Offset Date and text if Footer is disabled but banners are present
+            let dateBottom = bottomOffset + (state.footer.active ? 60 : 10);
+            const dateHTML = `
+                <div id="date-row-export" style="position: absolute; bottom: ${dateBottom}px; left: 0; width: 1080px; display: flex; justify-content: center; z-index: 25;">
+                    <span style="color: white; font-size: 30px; font-weight: 600; text-shadow: 0px 3px 8px rgba(0,0,0,0.8);">${state.date.text}</span>
+                </div>
+            `;
+
+            const blurValPreview = 25; 
+            let blurLayerHTML = '';
+            let fgContainerHTML = '';
+
+            if (state.bg.blur) {
+                if (isExport && exportUnifiedBgSrc) {
+                    blurLayerHTML = `<div style="position: absolute; top: 0; left: 0; width: 1080px; height: 1350px; z-index: 1; background-color: #000;"><img src="${exportUnifiedBgSrc}" style="width: 100%; height: 100%; object-fit: cover; display: block;"></div>`;
+                    fgContainerHTML = ``;
+                } else {
+                    blurLayerHTML = `<div style="position: absolute; top: -15%; left: -15%; width: 130%; height: 130%; z-index: 1; background-color: #000;"><img src="${state.bg.src}" crossorigin="anonymous" style="width: 100%; height: 100%; object-fit: cover; filter: blur(${blurValPreview}px) brightness(0.6); -webkit-filter: blur(${blurValPreview}px) brightness(0.6);"></div>`;
+                    let fgImageStyle = `max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; image-rendering: -webkit-optimize-contrast; transform: translate(${state.bg.x}px, ${state.bg.y}px) scale(${state.bg.scale}); box-shadow: 0 0 80px rgba(0,0,0,0.65); border: none !important; outline: none !important;`;
+                    let fgContainerStyle = `position: absolute; top: 0; left: 0; width: 1080px; height: 1350px; z-index: 2; display: flex; align-items: flex-start; justify-content: center; padding-top: 100px;`;
+                    fgContainerHTML = `<div style="${fgContainerStyle}"><img src="${state.bg.src}" style="${fgImageStyle}" crossorigin="anonymous"></div>`;
+                }
+            } else {
+                let fgImageStyle = `max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; image-rendering: -webkit-optimize-contrast; transform: translate(${state.bg.x}px, ${state.bg.y}px) scale(${state.bg.scale}); border: none !important; outline: none !important;`;
+                let fgContainerStyle = `position: absolute; top: 0; left: 0; width: 1080px; height: 1350px; z-index: 2; display: flex; align-items: flex-start; justify-content: center; padding-top: 100px;`;
+                fgContainerHTML = `<div style="${fgContainerStyle}"><img src="${state.bg.src}" style="${fgImageStyle}" crossorigin="anonymous"></div>`;
+            }
+
+            const hasLine3 = state.lines[2] && state.lines[2].text.trim() !== '' && state.lines[2].visible !== false;
+            const gradientHeight = hasLine3 ? 750 : 600;
+            let textWrapperBottom = bottomOffset + 110;
+
+            return `
+                <div style="width: 1080px; height: 1350px; position: relative; overflow: hidden; background-color: #000; box-sizing: border-box;">
+                    ${blurLayerHTML}
+                    ${fgContainerHTML}
+                    <div id="gradient-export" style="position: absolute; bottom: ${bottomOffset}px; left: -4px; right: -4px; height: ${gradientHeight}px; background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 45%, rgba(0,0,0,0.1) 65%, transparent 80%); z-index: 10; pointer-events: none;"></div>
+                    <img src="${state.logo.src}" style="position: absolute; top: 40px; left: 40px; width: ${state.logoSize}px; object-fit: contain; z-index: 20;" crossorigin="anonymous">
+                    <div id="headlines-export-wrapper" style="position: absolute; bottom: ${textWrapperBottom}px; left: 70px; width: 940px; display: flex; flex-direction: column; justify-content: flex-end; z-index: 20;">
+                        <div style="display: flex; flex-direction: column; width: 100%; gap: ${parseInt(state.gap) + 15}px; transform: translateY(${state.textPos.y}px);">
+                            ${linesHTML}
+                        </div>
+                    </div>
+                    ${dateHTML}
+                    ${footerHTML}
+                    ${bannerHTML}
+                </div>
+            `;
+        }
+
+        let renderAnimationFrame = null;
+
+        function renderAll() {
+            if (renderAnimationFrame) {
+                cancelAnimationFrame(renderAnimationFrame);
+            }
+            
+            renderAnimationFrame = requestAnimationFrame(() => {
+                const area = document.getElementById('capture-area');
+                if (area) {
+                    area.innerHTML = generateArtworkHTML(false, null);
+                    const highlights = area.querySelectorAll('.highlight-box-export-fix');
+                    highlights.forEach((box, index) => {
+                        if (index === 0 || index === 1) {
+                            let offset = 4; // reduced for 1080 scale
+                            box.style.position = 'relative';
+                            box.style.top = `${offset}px`;
+                            const textSpan = box.querySelector('span');
+                            if (textSpan) {
+                                textSpan.style.position = 'relative';
+                                textSpan.style.top = `${-offset}px`;
+                            }
+                        }
+                    });
+                }
+                const scaleLbl = document.getElementById('bg-scale-val');
+                const posNum = document.getElementById('text-y-num');
+                if (scaleLbl) scaleLbl.innerText = parseFloat(state.bg.scale).toFixed(2);
+                if (posNum) posNum.value = state.textPos.y;
+            });
+        }
+
+        function renderControls() {
+            const container = document.getElementById('lines-container');
+            container.innerHTML = '';
+            
+            const indicatorColors = ['border-l-blue-500', 'border-l-amber-500', 'border-l-emerald-500'];
+            
+            state.lines.forEach((line, idx) => {
+                const card = document.createElement('div');
+                card.id = `line-card-${idx}`;
+                
+                const borderColorClass = indicatorColors[idx] || 'border-l-slate-300';
+                card.className = `bg-white rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-slate-200 border-l-[6px] ${borderColorClass} transition-all relative flex flex-col`;
+                
+                const textareaClass = "w-full pl-3 pr-2 py-3 bg-transparent text-slate-800 text-base font-bold focus:bg-slate-50 outline-none transition-all resize-none font-prompt leading-tight border-0";
+                
+                card.innerHTML = `
+                    <div class="relative flex flex-col ${line.visible === false ? 'opacity-60 bg-slate-50' : ''}">
+                        <div class="flex items-start">
+                            <div class="pt-3 flex-none w-8 flex flex-col items-center gap-1.5">
+                                <span class="text-[9px] font-bold text-slate-400 uppercase">${idx+1}</span>
+                                <button onclick="updateLine(${idx}, 'visible', ${line.visible === false ? 'true' : 'false'})" class="text-slate-400 hover:text-newsBlue transition" title="${line.visible === false ? 'แสดงพาดหัวนี้' : 'ซ่อนพาดหัวนี้'}">
+                                    <i class="ph-bold ${line.visible === false ? 'ph-eye-slash' : 'ph-eye'} text-[15px]"></i>
+                                </button>
+                            </div>
+                            <div class="flex-grow">
+                                <textarea oninput="updateLine(${idx}, 'text', this.value)" 
+                                          onfocus="handleInputFocus(${idx})" 
+                                          onblur="handleInputBlur()"
+                                          class="${textareaClass} ${line.visible === false ? 'line-through text-slate-400' : ''}" rows="1" placeholder="พิมพ์ข้อความ...">${line.text}</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between items-center px-3 py-2 border-t border-slate-100 bg-slate-50/50">
+                            <button onclick="toggleAdvancedText(${idx})" class="text-[11px] font-bold ${line.showAdv ? 'text-newsBlue bg-blue-50' : 'text-slate-500 hover:bg-slate-100'} flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all border border-transparent ${line.showAdv ? 'border-blue-100' : ''}">
+                                <i class="ph-bold ${line.showAdv ? 'ph-caret-up' : 'ph-palette'} text-[14px]"></i> สี / ขนาด
+                            </button>
+                            <div class="flex gap-1">
+                                <button onclick="updateLine(${idx}, 'align', 'left')" class="w-8 h-8 flex items-center justify-center rounded-lg ${line.align === 'left' ? 'bg-newsBlue text-white shadow-sm' : 'bg-white text-slate-400 border border-slate-200'} transition"><i class="ph-bold ph-text-align-left text-sm"></i></button>
+                                <button onclick="updateLine(${idx}, 'align', 'center')" class="w-8 h-8 flex items-center justify-center rounded-lg ${line.align === 'center' ? 'bg-newsBlue text-white shadow-sm' : 'bg-white text-slate-400 border border-slate-200'} transition"><i class="ph-bold ph-text-align-center text-sm"></i></button>
+                                <button onclick="updateLine(${idx}, 'align', 'right')" class="w-8 h-8 flex items-center justify-center rounded-lg ${line.align === 'right' ? 'bg-newsBlue text-white shadow-sm' : 'bg-white text-slate-400 border border-slate-200'} transition"><i class="ph-bold ph-text-align-right text-sm"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="${line.showAdv ? 'block' : 'hidden'} bg-white border-t border-slate-100 p-4 space-y-4">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">ขนาดตัวอักษร</label>
+                                <span class="text-xs font-bold text-newsBlue bg-blue-50 px-2 py-0.5 rounded">${line.size}</span>
+                            </div>
+                            <input type="range" id="range-size-${idx}" min="30" max="250" value="${line.size}" onmousedown="saveToHistory()" ontouchstart="saveToHistory()" oninput="updateLine(${idx}, 'size', parseInt(this.value))" class="w-full">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-500 block mb-2">สีอักษร</label>
+                                <div class="flex gap-1.5 flex-wrap">
+                                    ${defaultColors.map(c => `<button onclick="updateLine(${idx}, 'color', '${c.hex}')" class="w-6 h-6 rounded-full border border-slate-300 shadow-sm transition" style="background-color: ${c.hex}; ${line.color === c.hex ? 'outline: 2px solid #00c0fa; outline-offset: 1px;' : ''}"></button>`).join('')}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-500 block mb-2">แถบสีไฮไลท์</label>
+                                <div class="flex gap-1.5 items-center flex-wrap">
+                                    <button onclick="updateLine(${idx}, 'bgColor', 'transparent')" class="text-[10px] font-bold w-6 h-6 flex items-center justify-center border border-slate-300 rounded-full bg-white hover:bg-slate-100 text-slate-500">X</button>
+                                    <button onclick="updateLine(${idx}, 'bgColor', '#000000')" class="w-6 h-6 rounded-full bg-black border border-slate-300 shadow-sm" style="${line.bgColor === '#000000' ? 'outline: 2px solid #00c0fa; outline-offset: 1px;' : ''}"></button>
+                                    <button onclick="updateLine(${idx}, 'bgColor', '#00c0fa')" class="w-6 h-6 rounded-full bg-newsBlue border border-slate-300 shadow-sm" style="${line.bgColor === '#00c0fa' ? 'outline: 2px solid #00c0fa; outline-offset: 1px;' : ''}"></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 pt-1">
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="text-[10px] font-bold text-slate-500">ขอบดำ (Stroke)</label>
+                                    <input type="number" id="num-stroke-${idx}" value="${line.stroke || 0}" class="w-10 text-xs bg-slate-100 text-slate-600 rounded text-center font-bold outline-none py-0.5" readonly>
+                                </div>
+                                <input type="range" id="range-stroke-${idx}" min="0" max="25" value="${line.stroke || 0}" onmousedown="saveToHistory()" ontouchstart="saveToHistory()" oninput="updateLine(${idx}, 'stroke', parseInt(this.value))" class="w-full accent-slate-600">
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="text-[10px] font-bold text-slate-500">ระยะเงา (Shadow)</label>
+                                    <input type="number" id="num-shadowOffset-${idx}" value="${line.shadowOffset || 0}" class="w-10 text-xs bg-slate-100 text-slate-600 rounded text-center font-bold outline-none py-0.5" readonly>
+                                </div>
+                                <input type="range" id="range-shadowOffset-${idx}" min="0" max="30" value="${line.shadowOffset || 0}" onmousedown="saveToHistory()" ontouchstart="saveToHistory()" oninput="updateLine(${idx}, 'shadowOffset', parseInt(this.value))" class="w-full accent-slate-600">
+                            </div>
+                        </div>
+                        
+                        <div class="pt-2 border-t border-slate-100 mt-2">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-[10px] font-bold text-slate-500">ขยับขึ้น/ลง (เฉพาะบรรทัดนี้)</label>
+                                <input type="number" id="num-yOffset-${idx}" value="${line.yOffset}" class="w-12 text-xs bg-emerald-50 text-emerald-600 rounded text-center font-bold outline-none py-0.5" readonly>
+                            </div>
+                            <input type="range" id="range-yOffset-${idx}" min="-300" max="300" value="${line.yOffset}" onmousedown="saveToHistory()" ontouchstart="saveToHistory()" oninput="updateLine(${idx}, 'yOffset', parseInt(this.value))" class="w-full accent-emerald-500">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function syncInputs() {
+            const ids = ['bg-scale', 'bg-x', 'bg-y', 'bg-blur-toggle', 'text-y', 'text-y-num', 'logo-size', 'line-gap', 'footer-toggle', 'footer-text', 'date-text'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (id === 'footer-toggle') el.checked = state.footer.active;
+                else if (id === 'bg-blur-toggle') el.checked = state.bg.blur;
+                else if (id === 'footer-text') el.value = state.footer.text;
+                else if (id === 'date-text') el.value = state.date.text;
+                else if (id === 'bg-scale') el.value = state.bg.scale;
+                else if (id === 'bg-x') el.value = state.bg.x;
+                else if (id === 'bg-y') el.value = state.bg.y;
+                else if (id === 'text-y' || id === 'text-y-num') el.value = state.textPos.y;
+                else if (id === 'logo-size') el.value = state.logoSize;
+                else if (id === 'line-gap') el.value = state.gap;
+            });
+        }
+
+        function handleResize() {
+            const wrapper = document.getElementById('preview-wrapper');
+            const container = document.getElementById('scale-container');
+            const artwork = document.getElementById('capture-area');
+            if (!wrapper || !container || !artwork) return;
+            
+            let padding = window.innerWidth < 1024 ? 16 : 40;
+            if (document.body.classList.contains('typing-mode')) padding = 8;
+
+            const w = wrapper.clientWidth - padding;
+            const h = wrapper.clientHeight - padding;
+            
+            // Base resolution updated to 1080x1350
+            const scale = Math.min(w / 1080, h / 1350, 1);
+            artwork.style.transform = `scale(${scale})`;
+            artwork.style.transformOrigin = `top left`;
+            container.style.width = `${1080 * scale}px`;
+            container.style.height = `${1350 * scale}px`;
+        }
+
+        async function exportImage() {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('hidden');
+
+            try {
+                let exportUnifiedBgSrc = null;
+                if (state.bg.blur) {
+                    exportUnifiedBgSrc = await new Promise((resolve) => {
+                        const img = new Image();
+                        if (!state.bg.src.startsWith('blob:') && !state.bg.src.startsWith('data:')) { img.crossOrigin = "anonymous"; }
+                        img.onload = () => {
+                            try {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = 1080; canvas.height = 1350; 
+                                const ctx = canvas.getContext('2d');
+                                ctx.filter = 'blur(15px) brightness(0.6)';
+                                const imgRatio = img.width / img.height;
+                                const canvasRatio = canvas.width / canvas.height;
+                                let bgDrawW = canvas.width; let bgDrawH = canvas.height;
+                                if (imgRatio > canvasRatio) bgDrawW = canvas.height * imgRatio;
+                                else bgDrawH = canvas.width / imgRatio;
+                                const bleed = 80; 
+                                bgDrawW += bleed * 2; bgDrawH += bleed * 2;
+                                ctx.drawImage(img, (canvas.width - bgDrawW) / 2, (canvas.height - bgDrawH) / 2, bgDrawW, bgDrawH);
+                                
+                                ctx.filter = 'none';
+                                let fgW = img.width; let fgH = img.height;
+                                if (fgW > 1080) { fgH = fgH * (1080 / fgW); fgW = 1080; }
+                                if (fgH > 1350) { fgW = fgW * (1350 / fgH); fgH = 1350; }
+                                
+                                ctx.save();
+                                ctx.translate((1080 / 2) + parseFloat(state.bg.x), 100 + (fgH / 2) + parseFloat(state.bg.y));
+                                ctx.scale(parseFloat(state.bg.scale), parseFloat(state.bg.scale));
+                                ctx.shadowColor = 'rgba(0, 0, 0, 0.65)'; ctx.shadowBlur = 80;
+                                ctx.drawImage(img, -fgW / 2, -fgH / 2, fgW, fgH);
+                                ctx.restore();
+                                resolve(canvas.toDataURL('image/jpeg', 0.9));
+                            } catch (e) { resolve(state.bg.src); }
+                        };
+                        img.onerror = () => resolve(state.bg.src); 
+                        img.src = state.bg.src;
+                    });
+                }
+
+                const exportContainer = document.createElement('div');
+                exportContainer.style.position = 'fixed'; exportContainer.style.left = '-9999px'; exportContainer.style.top = '0';
+                exportContainer.style.width = '1080px'; exportContainer.style.height = '1350px';
+                exportContainer.innerHTML = generateArtworkHTML(true, exportUnifiedBgSrc); 
+                
+                const highlightBoxes = exportContainer.querySelectorAll('.highlight-box-export-fix');
+                highlightBoxes.forEach((box, index) => {
+                    if (box.style.backgroundColor !== 'transparent' && box.style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                        // Scaled adjustments for 1080 base
+                        let bTop = 55; let tTop = -55;
+                        if (index === 1) { bTop = 45; tTop = -45; } else if (index === 2) { bTop = 40; tTop = -40; }
+                        box.style.position = 'relative'; box.style.top = bTop + 'px'; 
+                        const textSpan = box.querySelector('span');
+                        if (textSpan) { textSpan.style.position = 'relative'; textSpan.style.top = tTop + 'px'; }
+                        if (index === 0 || index === 1 || index === 2) { box.parentElement.style.position = 'relative'; box.parentElement.style.top = '-15px'; }
+                    }
+                });
+
+                // ขยับพาดหัวทั้งก้อนขึ้น 2 Step (ประมาณ 20px) เฉพาะระบบบันทึกรูป
+                const exportHeadlinesWrapper = exportContainer.querySelector('#headlines-export-wrapper');
+                if (exportHeadlinesWrapper) {
+                    const currentBottom = parseInt(exportHeadlinesWrapper.style.bottom || '0');
+                    exportHeadlinesWrapper.style.bottom = (currentBottom + 20) + 'px';
+                }
+
+                // --- แก้ไขเฉพาะระบบการบันทึกรูปภาพ: ขยับเฟดสีดำตามพาดหัว ---
+                const exportGradient = exportContainer.querySelector('#gradient-export');
+                if (exportGradient) {
+                    const currentBottom = parseInt(exportGradient.style.bottom || '0');
+                    exportGradient.style.bottom = (currentBottom + 20) + 'px';
+                }
+
+                // --- แก้ไขเฉพาะระบบการบันทึกรูปภาพ (แถบส่วนท้าย) ---
+                const exportFooter = exportContainer.querySelector('#footer-bar-export');
+                if (exportFooter) {
+                    const currentBottom = parseInt(exportFooter.style.bottom || '0');
+                    exportFooter.style.bottom = (currentBottom - 15) + 'px'; // ขยับแถบสีฟ้าลง 15px
+
+                    const footerTextSpan = exportFooter.querySelector('span');
+                    if (footerTextSpan) {
+                        footerTextSpan.style.position = 'relative';
+                        // ปรับแต่งการแสดงผลตัวอักษรไทยให้มีระยะบรรทัด (Line Height) มากขึ้น เพื่อไม่ให้วรรณยุกต์ชิดขอบหรือถูกตัด
+                        footerTextSpan.style.top = '-18px'; 
+                        footerTextSpan.style.fontSize = '22px'; 
+                        footerTextSpan.style.fontWeight = '400';
+                        footerTextSpan.style.lineHeight = '1.8'; // เพิ่มช่องว่างด้านบนสำหรับวรรณยุกต์
+                        footerTextSpan.style.display = 'block';
+                        footerTextSpan.style.paddingBottom = '0px'; // ล้าง padding ที่อาจทำให้ตำแหน่งเลื่อน
+                    }
+                }
+
+                document.body.appendChild(exportContainer);
+                await new Promise(r => setTimeout(r, 800)); 
+                
+                const canvas = await html2canvas(exportContainer.firstElementChild, {
+                    scale: 1, useCORS: true, allowTaint: true, backgroundColor: '#000000', width: 1080, height: 1350, logging: false
+                });
+
+                document.body.removeChild(exportContainer);
+                
+                const link = document.createElement('a');
+                link.download = `CM108_NewsCover_4x5_${Date.now()}.jpg`;
+                link.href = canvas.toDataURL('image/jpeg', 1.0);
+                link.click();
+            } catch (err) { console.error(err); } finally { overlay.classList.add('hidden'); }
+        }
+
+        window.onload = () => {
+            document.getElementById('date-text').value = state.date.text;
+
+            if (state.logo.src.startsWith('http')) {
+                const preloadLogo = new Image();
+                preloadLogo.crossOrigin = "anonymous";
+                preloadLogo.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = preloadLogo.width;
+                    canvas.height = preloadLogo.height;
+                    canvas.getContext('2d').drawImage(preloadLogo, 0, 0);
+                    try {
+                        state.logo.src = canvas.toDataURL('image/png');
+                        renderAll();
+                    } catch(e) {}
+                };
+                preloadLogo.src = state.logo.src + "?t=" + new Date().getTime();
+            }
+
+            renderControls();
+            renderBannersUI();
+            renderAll();
+            handleResize();
+            
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(handleResize, 100);
+            });
+            
+            document.getElementById('bg-upload').addEventListener('change', function(e) {
+                if (e.target.files && e.target.files[0]) {
+                    const url = URL.createObjectURL(e.target.files[0]);
+                    const img = new Image();
+                    img.onload = function() {
+                        saveToHistory();
+                        state.bg.src = url;
+                        // Calculate scale for 1080x1350
+                        const scaleX = 1080 / img.width;
+                        const scaleY = 1350 / img.height;
+                        const minScale = Math.max(scaleX, scaleY);
+                        state.bg.scale = minScale.toFixed(2);
+                        state.bg.x = 0; 
+                        state.bg.y = 0;
+                        renderAll(); 
+                        syncInputs();
+                    };
+                    img.src = url;
+                }
+            });
+            document.getElementById('logo-upload').addEventListener('change', function(e) {
+                if (e.target.files && e.target.files[0]) {
+                    saveToHistory(); state.logo.src = URL.createObjectURL(e.target.files[0]); renderAll();
+                }
+            });
+
+            document.getElementById('bg-blur-toggle').addEventListener('change', function(e) { saveToHistory(); state.bg.blur = e.target.checked; renderAll(); });
+
+            ['bg-scale', 'bg-x', 'bg-y', 'text-y', 'logo-size', 'line-gap'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                
+                if (el.type === 'range') {
+                    el.addEventListener('mousedown', saveToHistory);
+                    el.addEventListener('touchstart', saveToHistory, {passive: true});
+                } else if (el.type === 'number' || el.type === 'text') {
+                    el.addEventListener('focus', saveToHistory);
+                }
+
+                el.oninput = (e) => {
+                    let val = e.target.value;
+                    if (id === 'bg-scale') state.bg.scale = val;
+                    else if (id === 'bg-x') state.bg.x = val;
+                    else if (id === 'bg-y') state.bg.y = val;
+                    else if (id === 'text-y') { state.textPos.y = val; document.getElementById('text-y-num').value = val; }
+                    else if (id === 'logo-size') state.logoSize = val;
+                    else if (id === 'line-gap') state.gap = val;
+                    renderAll();
+                };
+            });
+
+            const textYNum = document.getElementById('text-y-num');
+            if (textYNum) {
+                textYNum.addEventListener('focus', saveToHistory);
+                textYNum.oninput = (e) => {
+                    state.textPos.y = e.target.value;
+                    document.getElementById('text-y').value = e.target.value;
+                    renderAll();
+                };
+            }
+
+            document.getElementById('date-text').onfocus = () => saveToHistory();
+            document.getElementById('date-text').oninput = (e) => { state.date.text = e.target.value; renderAll(); };
+            
+            document.getElementById('footer-toggle').onchange = (e) => { saveToHistory(); state.footer.active = e.target.checked; renderAll(); };
+            
+            document.getElementById('footer-text').onfocus = () => saveToHistory();
+            document.getElementById('footer-text').oninput = (e) => { state.footer.text = e.target.value; renderAll(); };
+            
+            window.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); } });
+        };
+    </script>
+</body>
+
+</html>
