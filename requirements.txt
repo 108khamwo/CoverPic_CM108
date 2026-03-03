@@ -2,4 +2,5 @@ flask
 line-bot-sdk
 Pillow
 requests
+
 2.  หาฟอนต์ **Prompt-Bold.ttf** มาวางไว้คู่กับไฟล์ `app.py`
