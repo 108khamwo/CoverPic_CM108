@@ -37,19 +37,22 @@ def generate_cover(bg_image_bytes, text_lines):
 
     canvas = Image.new('RGB', (base_width, base_height), color='black')
     
-    # จัดตำแหน่งรูปพื้นหลัง (Center Crop)
-    bg_ratio = bg.width / bg.height
-    canvas_ratio = base_width / base_height
-    if bg_ratio > canvas_ratio:
-        new_w = int(base_height * bg_ratio)
-        bg = bg.resize((new_w, base_height), Image.Resampling.LANCZOS)
-        left = (new_w - base_width) / 2
-        bg = bg.crop((left, 0, left + base_width, base_height))
+    # --- การจัดตำแหน่งรูปพื้นหลังแบบชิดขอบบน (Top-Align) ---
+    new_w = base_width
+    new_h = int(bg.height * (base_width / bg.width))
+    
+    # ป้องกันรูปเตี้ยเกินไป (บังคับให้สูงอย่างน้อย 800px เพื่อให้คลุมถึงพาดหัว 1)
+    min_img_h = 800
+    if new_h < min_img_h:
+        new_h = min_img_h
+        new_w = int(min_img_h * (bg.width / bg.height))
+        bg = bg.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        left = (new_w - base_width) // 2
+        bg = bg.crop((left, 0, left + base_width, new_h))
     else:
-        new_h = int(base_width / bg_ratio)
         bg = bg.resize((base_width, new_h), Image.Resampling.LANCZOS)
-        top = (new_h - base_height) / 2
-        bg = bg.crop((0, top, base_width, top + base_height))
+    
+    # วางรูปชิดขอบบนสุด
     canvas.paste(bg, (0, 0))
     
     # 2. วาดแถบสีดำ (ไล่ระดับสีดำแบบโค้ง Ease-In Gradient)
@@ -80,7 +83,7 @@ def generate_cover(bg_image_bytes, text_lines):
     except Exception as e:
         print(f"Frame Error: {e}")
 
-    # 4. จัดการฟอนต์และวาดข้อความ (วาดหลังสุดเพื่อให้อยู่บนสุด)
+    # 4. จัดการฟอนต์และวาดข้อความ
     font_path = "Prompt-Bold.ttf"
     draw = ImageDraw.Draw(canvas)
     
@@ -99,29 +102,28 @@ def generate_cover(bg_image_bytes, text_lines):
         except:
             return ImageFont.load_default()
 
-    # --- บรรทัดที่ 1 ---
+    # --- บรรทัดที่ 1 (พิกัด 740 ล็อกฐานเดิม) ---
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
         f_t1 = get_auto_font(t1, 120, 970) 
         y1_floor = 740 
         draw.text((base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", stroke_width=5, stroke_fill="black", anchor="ms")
     
-    # --- บรรทัดที่ 2 (มีกรอบสีฟ้าและเงา) ---
+    # --- บรรทัดที่ 2 (พิกัด 880 + กรอบสีฟ้าความสูงคงที่) ---
     t2 = text_lines[1] if len(text_lines) > 1 else ""
     if t2:
         f_t2 = get_auto_font(t2, 100, 960) 
         size2 = getattr(f_t2, "size", 100)
         y2_floor = 880 
         
-        # วัดความกว้างตัวหนังสือ
         bbox = draw.textbbox((base_width/2, y2_floor), t2, font=f_t2, anchor="ms")
         
-        # คำนวณความสูงกรอบจากขนาดฟอนต์ (ขนาดกรอบจะคงที่)
-        box_top = y2_floor - (size2 * 0.95) - 10
-        box_bottom = y2_floor + (size2 * 0.35) + 15
+        # คำนวณความสูงกรอบคงที่โดยอ้างอิงจากขนาดฟอนต์ 100 เสมอ ไม่ว่าตัวหนังสือจริงจะเล็กลงแค่ไหน
+        box_top = y2_floor - (100 * 0.95) - 10
+        box_bottom = y2_floor + (100 * 0.35) + 15
         pad_x = 25      
         
-        # วาดเงาดำทึบ (Drop Shadow) ของกล่องสีฟ้า
+        # วาดเงาดำทึบของกล่อง
         shadow_offset = 8
         draw.rounded_rectangle([(bbox[0]-pad_x+shadow_offset, box_top+shadow_offset), 
                                 (bbox[2]+pad_x+shadow_offset, box_bottom+shadow_offset)], 
@@ -131,32 +133,31 @@ def generate_cover(bg_image_bytes, text_lines):
         draw.rounded_rectangle([(bbox[0]-pad_x, box_top), (bbox[2]+pad_x, box_bottom)], 
                                radius=16, fill="#0bc8fa", outline="black", width=5)
         
-        # วาดเงาดำของตัวหนังสือ
+        # คำนวณชดเชยให้ข้อความขยับขึ้นไปอยู่กึ่งกลางกรอบเสมอเมื่อขนาดฟอนต์ถูกย่อ
+        y2_text_floor = 850 + (size2 * 0.3)
+        
+        # เงาตัวหนังสือและตัวหนังสือจริง
         text_shadow = 5
-        draw.text((base_width/2 + text_shadow, y2_floor + text_shadow), t2, font=f_t2, fill="black", stroke_width=5, stroke_fill="black", anchor="ms")
+        draw.text((base_width/2 + text_shadow, y2_text_floor + text_shadow), t2, font=f_t2, fill="black", stroke_width=5, stroke_fill="black", anchor="ms")
+        draw.text((base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", stroke_width=5, stroke_fill="black", anchor="ms")
         
-        # วาดตัวหนังสือสีขาว
-        draw.text((base_width/2, y2_floor), t2, font=f_t2, fill="#ffffff", stroke_width=5, stroke_fill="black", anchor="ms")
-        
-    # --- บรรทัดที่ 3 ---
+    # --- บรรทัดที่ 3 (พิกัด 1005) ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
         f_t3 = get_auto_font(t3, 70, 960) 
         y3_floor = 1005 
         draw.text((base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", stroke_width=3, stroke_fill="black", anchor="ms")
 
-    # --- ส่วนของวันที่ ---
-    try:
-        f_date = ImageFont.truetype(font_path, 34)
-    except:
-        f_date = ImageFont.load_default()
-
+    # --- ส่วนของวันที่ (พิกัด 1060) ---
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     now = datetime.now()
     d_str = f"- {now.day} {thai_m[now.month-1]} {now.year + 543} -"
-    
     y_date_floor = 1060
-    draw.text((base_width/2, y_date_floor), d_str, font=f_date, fill="white", anchor="ms")
+    try:
+        f_date = ImageFont.truetype(font_path, 34)
+        draw.text((base_width/2, y_date_floor), d_str, font=f_date, fill="white", anchor="ms")
+    except:
+        draw.text((base_width/2, y_date_floor), d_str, fill="white", anchor="ms")
     
     out = BytesIO()
     canvas.convert('RGB').save(out, format='JPEG', quality=95)
@@ -167,7 +168,6 @@ def upload_to_imgbb(img_bytes):
     r = requests.post(url, files={'image': img_bytes})
     return r.json()['data']['url']
 
-# เพิ่มเส้นทางหน้าแรก เพื่อแก้ปัญหา Render แจ้งเตือนเรื่อง Port
 @app.route("/")
 def home():
     return "LINE Bot is running smoothly!"
