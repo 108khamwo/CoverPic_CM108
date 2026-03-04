@@ -1,5 +1,5 @@
 flask
 line-bot-sdk==2.4.2
-Pillow
+Pillow>=10.4.0
 requests
 gunicorn
