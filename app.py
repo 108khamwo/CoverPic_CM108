@@ -103,7 +103,7 @@ def generate_cover(bg_image_bytes, text_lines):
             return ImageFont.load_default()
 
     # [เพิ่มใหม่] ฟังก์ชันสำหรับยืดส่วนสูงข้อความแบบ Photoshop (15%)
-    def draw_stretched_text(canvas_img, xy, text, font, fill, stretch_ratio=1.10, text_shadow=0, **kwargs):
+    def draw_stretched_text(canvas_img, xy, text, font, fill, stretch_ratio=1.08, text_shadow=0, **kwargs):
         # สร้างแผ่นใสที่มีขนาดเท่า Canvas หลัก
         temp_img = Image.new('RGBA', canvas_img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp_img)
