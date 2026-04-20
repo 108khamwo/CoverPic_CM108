@@ -138,7 +138,7 @@ def generate_cover(bg_image_bytes, text_lines):
         f_t1 = get_auto_font(t1, 110, 970) 
         y1_floor = 730 
         draw_stretched_text(canvas, (base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", 
-                            stretch_ratio=1.15, stroke_width=5, stroke_fill="black", anchor="ms")
+                            stretch_ratio=1.08, stroke_width=5, stroke_fill="black", anchor="ms")
     
     # --- บรรทัดที่ 2 (พิกัด 880 + กรอบสีฟ้าความสูงคงที่) ---
     t2 = text_lines[1] if len(text_lines) > 1 else ""
@@ -169,7 +169,7 @@ def generate_cover(bg_image_bytes, text_lines):
         
         # วาดตัวหนังสือบรรทัด 2 พร้อมเงาดำโดยใช้ฟังก์ชันยืดความสูง
         draw_stretched_text(canvas, (base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", 
-                            stretch_ratio=1.15, text_shadow=4, stroke_width=4, stroke_fill="black", anchor="ms")
+                            stretch_ratio=1.08, text_shadow=4, stroke_width=4, stroke_fill="black", anchor="ms")
         
     # --- บรรทัดที่ 3 (พิกัด 1005) ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
@@ -177,7 +177,7 @@ def generate_cover(bg_image_bytes, text_lines):
         f_t3 = get_auto_font(t3, 63, 960) 
         y3_floor = 1005 
         draw_stretched_text(canvas, (base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", 
-                            stretch_ratio=1.15, stroke_width=3, stroke_fill="black", anchor="ms")
+                            stretch_ratio=1.08, stroke_width=3, stroke_fill="black", anchor="ms")
 
     # --- ส่วนของวันที่ (พิกัด 1060) ---
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
