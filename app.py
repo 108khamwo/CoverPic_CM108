@@ -182,7 +182,7 @@ def generate_cover(bg_image_bytes, text_lines):
     # --- ส่วนของวันที่ (พิกัด 1060) ---
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     now = datetime.now()
-    d_str = f"- {now.day} {thai_m[now.month-1]} {now.year + 543} -"
+    d_str = f"-{now.day} {thai_m[now.month-1]} {now.year + 543}-"
     y_date_floor = 1060
     try:
         f_date = ImageFont.truetype(font_path, 34)
