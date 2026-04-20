@@ -169,12 +169,12 @@ def generate_cover(bg_image_bytes, text_lines):
         
         # วาดตัวหนังสือบรรทัด 2 พร้อมเงาดำโดยใช้ฟังก์ชันยืดความสูง
         draw_stretched_text(canvas, (base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", 
-                            stretch_ratio=1.15, text_shadow=5, stroke_width=5, stroke_fill="black", anchor="ms")
+                            stretch_ratio=1.15, text_shadow=4, stroke_width=4, stroke_fill="black", anchor="ms")
         
     # --- บรรทัดที่ 3 (พิกัด 1005) ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
-        f_t3 = get_auto_font(t3, 60, 960) 
+        f_t3 = get_auto_font(t3, 63, 960) 
         y3_floor = 1005 
         draw_stretched_text(canvas, (base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", 
                             stretch_ratio=1.15, stroke_width=3, stroke_fill="black", anchor="ms")
