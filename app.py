@@ -175,7 +175,7 @@ def generate_cover(bg_image_bytes, text_lines):
     # --- บรรทัดที่ 3 ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
-        f_t3 = get_auto_font(t3, 63, 960) 
+        f_t3 = get_auto_font(t3, 64, 960) 
         y3_floor = 1005 
         draw_stretched_text(canvas, (base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", 
                             stretch_ratio=1.08, stroke_width=3, stroke_fill="black", anchor="ms")
