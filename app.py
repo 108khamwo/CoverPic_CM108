@@ -102,7 +102,7 @@ def generate_cover(bg_image_bytes, text_lines):
         except:
             return ImageFont.load_default()
 
-    # [เพิ่มใหม่] ฟังก์ชันสำหรับยืดส่วนสูงข้อความแบบ Photoshop (15%)
+    # ฟังก์ชันสำหรับยืดส่วนสูงข้อความแบบ Photoshop (ค่าเริ่มต้น 8%)
     def draw_stretched_text(canvas_img, xy, text, font, fill, stretch_ratio=1.08, text_shadow=0, **kwargs):
         # สร้างแผ่นใสที่มีขนาดเท่า Canvas หลัก
         temp_img = Image.new('RGBA', canvas_img.size, (0, 0, 0, 0))
@@ -132,7 +132,7 @@ def generate_cover(bg_image_bytes, text_lines):
         # นำแผ่นใสที่ยืดแล้ว แปะลงรูปหลัก
         canvas_img.alpha_composite(stretched, (paste_x, paste_y))
 
-    # --- บรรทัดที่ 1 (พิกัด 740 ล็อกฐานเดิม) ---
+    # --- บรรทัดที่ 1 ---
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
         f_t1 = get_auto_font(t1, 110, 970) 
@@ -140,7 +140,7 @@ def generate_cover(bg_image_bytes, text_lines):
         draw_stretched_text(canvas, (base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", 
                             stretch_ratio=1.08, stroke_width=5, stroke_fill="black", anchor="ms")
     
-    # --- บรรทัดที่ 2 (พิกัด 880 + กรอบสีฟ้าความสูงคงที่) ---
+    # --- บรรทัดที่ 2 ---
     t2 = text_lines[1] if len(text_lines) > 1 else ""
     if t2:
         f_t2 = get_auto_font(t2, 90, 960) 
@@ -149,9 +149,10 @@ def generate_cover(bg_image_bytes, text_lines):
         
         bbox = draw.textbbox((base_width/2, y2_floor), t2, font=f_t2, anchor="ms")
         
-        # ปรับความสูงกรอบสีฟ้าเพิ่มขึ้นเล็กน้อย เพื่อเผื่อตัวหนังสือที่ถูกยืดความสูงแล้ว (115 แทน 100)
-        box_top = y2_floor - (105 * 0.95) - 10
-        box_bottom = y2_floor + (105 * 0.35) + 15
+        # ปรับความหนากรอบสีฟ้า (ใช้ 105 เพื่อความสมดุล)
+        box_thickness = 105
+        box_top = y2_floor - (box_thickness * 0.95) - 10
+        box_bottom = y2_floor + (box_thickness * 0.35) + 15
         pad_x = 25      
         
         # วาดเงาดำทึบของกล่อง
@@ -164,14 +165,14 @@ def generate_cover(bg_image_bytes, text_lines):
         draw.rounded_rectangle([(bbox[0]-pad_x, box_top), (bbox[2]+pad_x, box_bottom)], 
                                radius=16, fill="#0bc8fa", outline="black", width=5)
         
-        # คำนวณชดเชยให้ข้อความขยับขึ้นไปอยู่กึ่งกลางกรอบเสมอเมื่อขนาดฟอนต์ถูกย่อ
+        # คำนวณชดเชยให้ข้อความขยับขึ้นไปอยู่กึ่งกลางกรอบ
         y2_text_floor = 840 + (size2 * 0.3)
         
-        # วาดตัวหนังสือบรรทัด 2 พร้อมเงาดำโดยใช้ฟังก์ชันยืดความสูง
+        # วาดตัวหนังสือบรรทัด 2 พร้อมยืดความสูง
         draw_stretched_text(canvas, (base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", 
                             stretch_ratio=1.08, text_shadow=4, stroke_width=4, stroke_fill="black", anchor="ms")
         
-    # --- บรรทัดที่ 3 (พิกัด 1005) ---
+    # --- บรรทัดที่ 3 ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
         f_t3 = get_auto_font(t3, 63, 960) 
@@ -186,7 +187,9 @@ def generate_cover(bg_image_bytes, text_lines):
     y_date_floor = 1060
     try:
         f_date = ImageFont.truetype(font_path, 34)
-        draw.text((base_width/2, y_date_floor), d_str, font=f_date, fill="white", anchor="ms")
+        # ปรับปรุง: ใช้วิธีการยืดความสูง 8% (1.08) เหมือนกับพาดหัวข่าว
+        draw_stretched_text(canvas, (base_width/2, y_date_floor), d_str, font=f_date, fill="white", 
+                            stretch_ratio=1.08, anchor="ms")
     except:
         draw.text((base_width/2, y_date_floor), d_str, fill="white", anchor="ms")
     
