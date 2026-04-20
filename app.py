@@ -135,7 +135,7 @@ def generate_cover(bg_image_bytes, text_lines):
     # --- บรรทัดที่ 1 (พิกัด 740 ล็อกฐานเดิม) ---
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
-        f_t1 = get_auto_font(t1, 120, 970) 
+        f_t1 = get_auto_font(t1, 110, 970) 
         y1_floor = 730 
         draw_stretched_text(canvas, (base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", 
                             stretch_ratio=1.15, stroke_width=5, stroke_fill="black", anchor="ms")
@@ -143,15 +143,15 @@ def generate_cover(bg_image_bytes, text_lines):
     # --- บรรทัดที่ 2 (พิกัด 880 + กรอบสีฟ้าความสูงคงที่) ---
     t2 = text_lines[1] if len(text_lines) > 1 else ""
     if t2:
-        f_t2 = get_auto_font(t2, 100, 960) 
+        f_t2 = get_auto_font(t2, 90, 960) 
         size2 = getattr(f_t2, "size", 100)
         y2_floor = 870 
         
         bbox = draw.textbbox((base_width/2, y2_floor), t2, font=f_t2, anchor="ms")
         
         # ปรับความสูงกรอบสีฟ้าเพิ่มขึ้นเล็กน้อย เพื่อเผื่อตัวหนังสือที่ถูกยืดความสูงแล้ว (115 แทน 100)
-        box_top = y2_floor - (110 * 0.95) - 10
-        box_bottom = y2_floor + (110 * 0.35) + 15
+        box_top = y2_floor - (105 * 0.95) - 10
+        box_bottom = y2_floor + (105 * 0.35) + 15
         pad_x = 25      
         
         # วาดเงาดำทึบของกล่อง
@@ -174,7 +174,7 @@ def generate_cover(bg_image_bytes, text_lines):
     # --- บรรทัดที่ 3 (พิกัด 1005) ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
-        f_t3 = get_auto_font(t3, 70, 960) 
+        f_t3 = get_auto_font(t3, 60, 960) 
         y3_floor = 1005 
         draw_stretched_text(canvas, (base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", 
                             stretch_ratio=1.15, stroke_width=3, stroke_fill="black", anchor="ms")
