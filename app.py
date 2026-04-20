@@ -102,12 +102,43 @@ def generate_cover(bg_image_bytes, text_lines):
         except:
             return ImageFont.load_default()
 
+    # [เพิ่มใหม่] ฟังก์ชันสำหรับยืดส่วนสูงข้อความแบบ Photoshop (15%)
+    def draw_stretched_text(canvas_img, xy, text, font, fill, stretch_ratio=1.15, text_shadow=0, **kwargs):
+        # สร้างแผ่นใสที่มีขนาดเท่า Canvas หลัก
+        temp_img = Image.new('RGBA', canvas_img.size, (0, 0, 0, 0))
+        temp_draw = ImageDraw.Draw(temp_img)
+        
+        # วาดเงาข้อความ (ถ้ามี)
+        if text_shadow > 0:
+            temp_draw.text((xy[0] + text_shadow, xy[1] + text_shadow), text, font=font, fill="black", **kwargs)
+            
+        # วาดข้อความสีจริง
+        temp_draw.text(xy, text, font=font, fill=fill, **kwargs)
+        
+        # ตัดขอบแผ่นใสให้เหลือแค่พื้นที่ข้อความ
+        bbox = temp_img.getbbox()
+        if not bbox: return
+        cropped = temp_img.crop(bbox)
+        
+        # ขยายเฉพาะส่วนสูง (ความกว้างเท่าเดิม)
+        new_w = cropped.width
+        new_h = int(cropped.height * stretch_ratio)
+        stretched = cropped.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        
+        # คำนวณตำแหน่งแปะ ยึดฐานล่างให้ตรงกับตำแหน่งเดิม
+        paste_x = bbox[0]
+        paste_y = bbox[3] - new_h
+        
+        # นำแผ่นใสที่ยืดแล้ว แปะลงรูปหลัก
+        canvas_img.alpha_composite(stretched, (paste_x, paste_y))
+
     # --- บรรทัดที่ 1 (พิกัด 740 ล็อกฐานเดิม) ---
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
         f_t1 = get_auto_font(t1, 120, 970) 
         y1_floor = 740 
-        draw.text((base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", stroke_width=5, stroke_fill="black", anchor="ms")
+        draw_stretched_text(canvas, (base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", 
+                            stretch_ratio=1.15, stroke_width=5, stroke_fill="black", anchor="ms")
     
     # --- บรรทัดที่ 2 (พิกัด 880 + กรอบสีฟ้าความสูงคงที่) ---
     t2 = text_lines[1] if len(text_lines) > 1 else ""
@@ -118,9 +149,9 @@ def generate_cover(bg_image_bytes, text_lines):
         
         bbox = draw.textbbox((base_width/2, y2_floor), t2, font=f_t2, anchor="ms")
         
-        # คำนวณความสูงกรอบคงที่โดยอ้างอิงจากขนาดฟอนต์ 100 เสมอ ไม่ว่าตัวหนังสือจริงจะเล็กลงแค่ไหน
-        box_top = y2_floor - (100 * 0.95) - 10
-        box_bottom = y2_floor + (100 * 0.35) + 15
+        # ปรับความสูงกรอบสีฟ้าเพิ่มขึ้นเล็กน้อย เพื่อเผื่อตัวหนังสือที่ถูกยืดความสูงแล้ว (115 แทน 100)
+        box_top = y2_floor - (115 * 0.95) - 10
+        box_bottom = y2_floor + (115 * 0.35) + 15
         pad_x = 25      
         
         # วาดเงาดำทึบของกล่อง
@@ -136,17 +167,17 @@ def generate_cover(bg_image_bytes, text_lines):
         # คำนวณชดเชยให้ข้อความขยับขึ้นไปอยู่กึ่งกลางกรอบเสมอเมื่อขนาดฟอนต์ถูกย่อ
         y2_text_floor = 850 + (size2 * 0.3)
         
-        # เงาตัวหนังสือและตัวหนังสือจริง
-        text_shadow = 5
-        draw.text((base_width/2 + text_shadow, y2_text_floor + text_shadow), t2, font=f_t2, fill="black", stroke_width=5, stroke_fill="black", anchor="ms")
-        draw.text((base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", stroke_width=5, stroke_fill="black", anchor="ms")
+        # วาดตัวหนังสือบรรทัด 2 พร้อมเงาดำโดยใช้ฟังก์ชันยืดความสูง
+        draw_stretched_text(canvas, (base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", 
+                            stretch_ratio=1.15, text_shadow=5, stroke_width=5, stroke_fill="black", anchor="ms")
         
     # --- บรรทัดที่ 3 (พิกัด 1005) ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
         f_t3 = get_auto_font(t3, 70, 960) 
         y3_floor = 1005 
-        draw.text((base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", stroke_width=3, stroke_fill="black", anchor="ms")
+        draw_stretched_text(canvas, (base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", 
+                            stretch_ratio=1.15, stroke_width=3, stroke_fill="black", anchor="ms")
 
     # --- ส่วนของวันที่ (พิกัด 1060) ---
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
