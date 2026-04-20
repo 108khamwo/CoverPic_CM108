@@ -136,7 +136,7 @@ def generate_cover(bg_image_bytes, text_lines):
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
         f_t1 = get_auto_font(t1, 120, 970) 
-        y1_floor = 740 
+        y1_floor = 730 
         draw_stretched_text(canvas, (base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", 
                             stretch_ratio=1.15, stroke_width=5, stroke_fill="black", anchor="ms")
     
@@ -145,7 +145,7 @@ def generate_cover(bg_image_bytes, text_lines):
     if t2:
         f_t2 = get_auto_font(t2, 100, 960) 
         size2 = getattr(f_t2, "size", 100)
-        y2_floor = 880 
+        y2_floor = 870 
         
         bbox = draw.textbbox((base_width/2, y2_floor), t2, font=f_t2, anchor="ms")
         
@@ -165,7 +165,7 @@ def generate_cover(bg_image_bytes, text_lines):
                                radius=16, fill="#0bc8fa", outline="black", width=5)
         
         # คำนวณชดเชยให้ข้อความขยับขึ้นไปอยู่กึ่งกลางกรอบเสมอเมื่อขนาดฟอนต์ถูกย่อ
-        y2_text_floor = 850 + (size2 * 0.3)
+        y2_text_floor = 840 + (size2 * 0.3)
         
         # วาดตัวหนังสือบรรทัด 2 พร้อมเงาดำโดยใช้ฟังก์ชันยืดความสูง
         draw_stretched_text(canvas, (base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", 
