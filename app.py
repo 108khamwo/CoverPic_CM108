@@ -21,7 +21,7 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 # ลิงก์กรอบรูป CM108
-FRAME_URL = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiOOtphYnEgsG_Q_5Ht_nM8h4hBJkTlJ0HvXwVOlixbfIkYC4y4NTIxcfl58PvyUi9Tj9azFCGGRCK3ysLAyX3yzXVHRmfbtsau733we6uQ3DE6csoMtWBMG2TNS2i-8aOtvIKTpzkCIyh3avLpViH74sW5SnwEZCkkToZeB4Q6VO-cxHafdputo5SmSxE/s0/frame_cm108.png"
+FRAME_URL = "https://img1.pic.in.th/images/-New-10.6.69-222.png"
 
 user_states = {}
 
