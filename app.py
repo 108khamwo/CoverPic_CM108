@@ -21,7 +21,7 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 # ลิงก์กรอบรูป CM108
-FRAME_URL = "https://img1.pic.in.th/images/New-14.7.69.png"
+FRAME_URL = "https://img2.pic.in.th/New-14.7.69-SM.png"
 
 user_states = {}
 
