@@ -13,16 +13,17 @@ import cloudinary.uploader
 app = Flask(__name__)
 
 # ==========================================
-# 1. API Keys (อัปเดตใหม่เป็น Cloudinary)
+# 1. API Keys (อัปเดตใหม่ ปลอดภัยด้วย Environment Variables)
 # ==========================================
-LINE_CHANNEL_ACCESS_TOKEN = 'A2I4k7+oJf6pGXFzvQCjzRr8Bpk2SZWDmBn3m0IXXzYj3q1EEjJAFZbsqaKXnN+n20j6EtKWQbxCoBUEED5D4pgW5BfMfesrSUCYz8IuS/EWc+beF9gGYsYI2RR7LOYdV7eDTrrbi9VcWyr5I7OsdQdB04t89/1O/w1cDnyilFU='
-LINE_CHANNEL_SECRET = 'b7ac02ec7b085a0e1a37841679ee32c4'
+# ดึงค่าจาก Environment Variables ของระบบ (Render) แทนการใส่ลงไปตรงๆ
+LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
+LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 
 # [ตั้งค่า Cloudinary ตรงนี้]
 cloudinary.config( 
-  cloud_name = "rsjexkmk", 
-  api_key = "788686672547283", 
-  api_secret = "CFplMCwbHVQJVMj7PnYqKNz1OiE" 
+  cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'), 
+  api_key = os.environ.get('CLOUDINARY_API_KEY'), 
+  api_secret = os.environ.get('CLOUDINARY_API_SECRET') 
 )
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
