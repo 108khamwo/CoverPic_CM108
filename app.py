@@ -30,7 +30,7 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 # ลิงก์กรอบรูป CM108
-FRAME_URL = "https://i.ibb.co/BKwvcK5c/New-16-7-69.png"
+FRAME_URL = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiOOtphYnEgsG_Q_5Ht_nM8h4hBJkTlJ0HvXwVOlixbfIkYC4y4NTIxcfl58PvyUi9Tj9azFCGGRCK3ysLAyX3yzXVHRmfbtsau733we6uQ3DE6csoMtWBMG2TNS2i-8aOtvIKTpzkCIyh3avLpViH74sW5SnwEZCkkToZeB4Q6VO-cxHafdputo5SmSxE/s0/frame_cm108.png"
 
 user_states = {}
 
@@ -125,6 +125,7 @@ def generate_cover(bg_image_bytes, text_lines):
         
         canvas_img.alpha_composite(stretched, (paste_x, paste_y))
 
+    # --- บรรทัดที่ 1 ---
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
         f_t1 = get_auto_font(t1, 110, 970) 
@@ -132,20 +133,21 @@ def generate_cover(bg_image_bytes, text_lines):
         draw_stretched_text(canvas, (base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", 
                             stretch_ratio=1.08, stroke_width=5, stroke_fill="black", anchor="ms")
     
+    # --- บรรทัดที่ 2 ---
     t2 = text_lines[1] if len(text_lines) > 1 else ""
     if t2:
         f_t2 = get_auto_font(t2, 90, 960) 
-        size2 = getattr(f_t2, "size", 100)
+        size2 = getattr(f_t2, "size", 90)
         y2_floor = 870 
         
         bbox = draw.textbbox((base_width/2, y2_floor), t2, font=f_t2, anchor="ms")
         
-        box_thickness = 105
+        box_thickness = 108
         box_top = y2_floor - (box_thickness * 0.95) - 10
         box_bottom = y2_floor + (box_thickness * 0.35) + 15
         pad_x = 25      
         
-        shadow_offset = 8
+        shadow_offset = 4
         draw.rounded_rectangle([(bbox[0]-pad_x+shadow_offset, box_top+shadow_offset), 
                                 (bbox[2]+pad_x+shadow_offset, box_bottom+shadow_offset)], 
                                radius=16, fill="black")
@@ -153,26 +155,36 @@ def generate_cover(bg_image_bytes, text_lines):
         draw.rounded_rectangle([(bbox[0]-pad_x, box_top), (bbox[2]+pad_x, box_bottom)], 
                                radius=16, fill="#0bc8fa", outline="black", width=5)
         
-        y2_text_floor = 840 + (size2 * 0.3)
+        y2_text_floor = 845 + (size2 * 0.3)
         
         draw_stretched_text(canvas, (base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", 
-                            stretch_ratio=1.08, text_shadow=4, stroke_width=4, stroke_fill="black", anchor="ms")
+                            stretch_ratio=1.08, text_shadow=2, stroke_width=3, stroke_fill="black", anchor="ms")
         
+    # --- บรรทัดที่ 3 ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
-        f_t3 = get_auto_font(t3, 63, 960) 
+        f_t3 = get_auto_font(t3, 60, 960) 
         y3_floor = 1005 
         draw_stretched_text(canvas, (base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", 
                             stretch_ratio=1.08, stroke_width=3, stroke_fill="black", anchor="ms")
 
+    # --- ส่วนของวันที่ ---
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     now = datetime.now()
-    d_str = f"-{now.day} {thai_m[now.month-1]} {now.year + 543}-"
-    y_date_floor = 1060
+    d_str = f"- {now.day} {thai_m[now.month-1]} {now.year + 543} -"
+    
+    # [จุดที่แก้] ขยับตำแหน่งฐานวันที่ลงนิดหน่อยเพื่อรับกับความสูงที่เพิ่มขึ้น (จาก 1060 เป็น 1065)
+    y_date_floor = 1065 
+    
     try:
-        f_date = ImageFont.truetype(font_path, 34)
+        # ปรับขนาดฟอนต์เริ่มต้นให้เล็กลงนิดนึง (จาก 34 เป็น 32) เพื่อให้ตอนโดนยืดเส้นจะไม่หนาเกินไป
+        f_date = ImageFont.truetype(font_path, 32)
+        
+        # [จุดที่แก้หลัก]
+        # 1. เพิ่ม stretch_ratio เป็น 1.15 (ยืด 15%) เฉพาะส่วนวันที่
+        # 2. ปรับตัวหนังสือให้โปร่งขึ้นโดยไม่ใส่เส้นขอบทึบๆ
         draw_stretched_text(canvas, (base_width/2, y_date_floor), d_str, font=f_date, fill="white", 
-                            stretch_ratio=1.08, anchor="ms")
+                            stretch_ratio=1.15, text_shadow=2, anchor="ms")
     except:
         draw.text((base_width/2, y_date_floor), d_str, fill="white", anchor="ms")
     
