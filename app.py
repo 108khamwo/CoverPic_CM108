@@ -7,28 +7,35 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, ImageMessage, TextSendMessage, ImageSendMessage
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
+import cloudinary
+import cloudinary.uploader
 
 app = Flask(__name__)
 
 # ==========================================
-# 1. API Keys
+# 1. API Keys (อัปเดตใหม่เป็น Cloudinary)
 # ==========================================
 LINE_CHANNEL_ACCESS_TOKEN = 'A2I4k7+oJf6pGXFzvQCjzRr8Bpk2SZWDmBn3m0IXXzYj3q1EEjJAFZbsqaKXnN+n20j6EtKWQbxCoBUEED5D4pgW5BfMfesrSUCYz8IuS/EWc+beF9gGYsYI2RR7LOYdV7eDTrrbi9VcWyr5I7OsdQdB04t89/1O/w1cDnyilFU='
 LINE_CHANNEL_SECRET = 'b7ac02ec7b085a0e1a37841679ee32c4'
-IMGBB_API_KEY = '74e8610380cc491dadba71c98e86e8bc'
+
+# [ตั้งค่า Cloudinary ตรงนี้]
+cloudinary.config( 
+  cloud_name = "rsjexkmk", 
+  api_key = "788686672547283", 
+  api_secret = "CFplMCwbHVQJVMj7PnYqKNz1OiE" 
+)
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 # ลิงก์กรอบรูป CM108
-FRAME_URL = "https://i.ibb.co/BKwvcK5c/New-16-7-69.png"
+FRAME_URL = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiOOtphYnEgsG_Q_5Ht_nM8h4hBJkTlJ0HvXwVOlixbfIkYC4y4NTIxcfl58PvyUi9Tj9azFCGGRCK3ysLAyX3yzXVHRmfbtsau733we6uQ3DE6csoMtWBMG2TNS2i-8aOtvIKTpzkCIyh3avLpViH74sW5SnwEZCkkToZeB4Q6VO-cxHafdputo5SmSxE/s0/frame_cm108.png"
 
 user_states = {}
 
 def generate_cover(bg_image_bytes, text_lines):
     base_width, base_height = 1080, 1350
     
-    # 1. โหลดรูปพื้นหลัง
     try:
         bg = Image.open(BytesIO(bg_image_bytes)).convert("RGB")
     except Exception as e:
@@ -37,11 +44,9 @@ def generate_cover(bg_image_bytes, text_lines):
 
     canvas = Image.new('RGB', (base_width, base_height), color='black')
     
-    # --- การจัดตำแหน่งรูปพื้นหลังแบบชิดขอบบน (Top-Align) ---
     new_w = base_width
     new_h = int(bg.height * (base_width / bg.width))
     
-    # ป้องกันรูปเตี้ยเกินไป (บังคับให้สูงอย่างน้อย 800px เพื่อให้คลุมถึงพาดหัว 1)
     min_img_h = 800
     if new_h < min_img_h:
         new_h = min_img_h
@@ -52,10 +57,8 @@ def generate_cover(bg_image_bytes, text_lines):
     else:
         bg = bg.resize((base_width, new_h), Image.Resampling.LANCZOS)
     
-    # วางรูปชิดขอบบนสุด
     canvas.paste(bg, (0, 0))
     
-    # 2. วาดแถบสีดำ (ไล่ระดับสีดำแบบโค้ง Ease-In Gradient)
     gradient = Image.new('RGBA', (base_width, base_height), (0,0,0,0))
     draw_grad = ImageDraw.Draw(gradient)
     
@@ -72,7 +75,6 @@ def generate_cover(bg_image_bytes, text_lines):
         
     canvas = Image.alpha_composite(canvas.convert('RGBA'), gradient)
     
-    # 3. วางกรอบรูป CM108 (ต้องวางก่อนวาดตัวหนังสือ!)
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         resp = requests.get(FRAME_URL, headers=headers, timeout=15)
@@ -83,11 +85,9 @@ def generate_cover(bg_image_bytes, text_lines):
     except Exception as e:
         print(f"Frame Error: {e}")
 
-    # 4. จัดการฟอนต์และวาดข้อความ
     font_path = "Prompt-Bold.ttf"
     draw = ImageDraw.Draw(canvas)
     
-    # ฟังก์ชันช่วยย่อขนาดฟอนต์อัตโนมัติ
     def get_auto_font(text, default_size, max_width):
         size = default_size
         try:
@@ -102,37 +102,28 @@ def generate_cover(bg_image_bytes, text_lines):
         except:
             return ImageFont.load_default()
 
-    # ฟังก์ชันสำหรับยืดส่วนสูงข้อความแบบ Photoshop (ค่าเริ่มต้น 8%)
     def draw_stretched_text(canvas_img, xy, text, font, fill, stretch_ratio=1.08, text_shadow=0, **kwargs):
-        # สร้างแผ่นใสที่มีขนาดเท่า Canvas หลัก
         temp_img = Image.new('RGBA', canvas_img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp_img)
         
-        # วาดเงาข้อความ (ถ้ามี)
         if text_shadow > 0:
             temp_draw.text((xy[0] + text_shadow, xy[1] + text_shadow), text, font=font, fill="black", **kwargs)
             
-        # วาดข้อความสีจริง
         temp_draw.text(xy, text, font=font, fill=fill, **kwargs)
         
-        # ตัดขอบแผ่นใสให้เหลือแค่พื้นที่ข้อความ
         bbox = temp_img.getbbox()
         if not bbox: return
         cropped = temp_img.crop(bbox)
         
-        # ขยายเฉพาะส่วนสูง (ความกว้างเท่าเดิม)
         new_w = cropped.width
         new_h = int(cropped.height * stretch_ratio)
         stretched = cropped.resize((new_w, new_h), Image.Resampling.LANCZOS)
         
-        # คำนวณตำแหน่งแปะ ยึดฐานล่างให้ตรงกับตำแหน่งเดิม
         paste_x = bbox[0]
         paste_y = bbox[3] - new_h
         
-        # นำแผ่นใสที่ยืดแล้ว แปะลงรูปหลัก
         canvas_img.alpha_composite(stretched, (paste_x, paste_y))
 
-    # --- บรรทัดที่ 1 ---
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
         f_t1 = get_auto_font(t1, 110, 970) 
@@ -140,7 +131,6 @@ def generate_cover(bg_image_bytes, text_lines):
         draw_stretched_text(canvas, (base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", 
                             stretch_ratio=1.08, stroke_width=5, stroke_fill="black", anchor="ms")
     
-    # --- บรรทัดที่ 2 ---
     t2 = text_lines[1] if len(text_lines) > 1 else ""
     if t2:
         f_t2 = get_auto_font(t2, 90, 960) 
@@ -149,45 +139,37 @@ def generate_cover(bg_image_bytes, text_lines):
         
         bbox = draw.textbbox((base_width/2, y2_floor), t2, font=f_t2, anchor="ms")
         
-        # ปรับความหนากรอบสีฟ้า (ใช้ 105 เพื่อความสมดุล)
         box_thickness = 105
         box_top = y2_floor - (box_thickness * 0.95) - 10
         box_bottom = y2_floor + (box_thickness * 0.35) + 15
         pad_x = 25      
         
-        # วาดเงาดำทึบของกล่อง
         shadow_offset = 8
         draw.rounded_rectangle([(bbox[0]-pad_x+shadow_offset, box_top+shadow_offset), 
                                 (bbox[2]+pad_x+shadow_offset, box_bottom+shadow_offset)], 
                                radius=16, fill="black")
         
-        # วาดกรอบสีฟ้า พร้อมเส้นขอบดำ
         draw.rounded_rectangle([(bbox[0]-pad_x, box_top), (bbox[2]+pad_x, box_bottom)], 
                                radius=16, fill="#0bc8fa", outline="black", width=5)
         
-        # คำนวณชดเชยให้ข้อความขยับขึ้นไปอยู่กึ่งกลางกรอบ
         y2_text_floor = 840 + (size2 * 0.3)
         
-        # วาดตัวหนังสือบรรทัด 2 พร้อมยืดความสูง
         draw_stretched_text(canvas, (base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", 
                             stretch_ratio=1.08, text_shadow=4, stroke_width=4, stroke_fill="black", anchor="ms")
         
-    # --- บรรทัดที่ 3 ---
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
-        f_t3 = get_auto_font(t3, 64, 960) 
+        f_t3 = get_auto_font(t3, 63, 960) 
         y3_floor = 1005 
         draw_stretched_text(canvas, (base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", 
                             stretch_ratio=1.08, stroke_width=3, stroke_fill="black", anchor="ms")
 
-    # --- ส่วนของวันที่ (พิกัด 1060) ---
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     now = datetime.now()
     d_str = f"-{now.day} {thai_m[now.month-1]} {now.year + 543}-"
     y_date_floor = 1060
     try:
         f_date = ImageFont.truetype(font_path, 34)
-        # ปรับปรุง: ใช้วิธีการยืดความสูง 8% (1.08) เหมือนกับพาดหัวข่าว
         draw_stretched_text(canvas, (base_width/2, y_date_floor), d_str, font=f_date, fill="white", 
                             stretch_ratio=1.08, anchor="ms")
     except:
@@ -197,10 +179,12 @@ def generate_cover(bg_image_bytes, text_lines):
     canvas.convert('RGB').save(out, format='JPEG', quality=95)
     return out.getvalue()
 
-def upload_to_imgbb(img_bytes):
-    url = f"https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}"
-    r = requests.post(url, files={'image': img_bytes})
-    return r.json()['data']['url']
+# [เปลี่ยนแปลงใหม่] ฟังก์ชันอัปโหลดรูปผ่าน Cloudinary
+def upload_to_cloudinary(img_bytes):
+    # ส่งรูปภาพในรูปแบบ bytes ไปที่ Cloudinary
+    response = cloudinary.uploader.upload(img_bytes, folder="cm108_covers")
+    # ดึงลิงก์ URL แบบ Secure (https) กลับมา
+    return response['secure_url']
 
 @app.route("/")
 def home():
@@ -232,13 +216,16 @@ def handle_image(event):
         content = line_bot_api.get_message_content(event.message.id)
         img_b = content.content
         
+        # สร้างรูป
         res_img = generate_cover(img_b, user_states[uid])
-        url = upload_to_imgbb(res_img)
+        
+        # [แก้ไข] อัปโหลดผ่าน Cloudinary แทน ImgBB
+        url = upload_to_cloudinary(res_img)
         
         line_bot_api.reply_message(event.reply_token, ImageSendMessage(original_content_url=url, preview_image_url=url))
         del user_states[uid]
     except Exception as e:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาด: {str(e)}"))
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาดในการอัปโหลดรูป: {str(e)}"))
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
