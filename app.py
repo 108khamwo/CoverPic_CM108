@@ -34,7 +34,8 @@ FRAME_URL = "https://i.ibb.co/BKwvcK5c/New-16-7-69.png"
 
 user_states = {}
 
-def generate_cover(bg_image_bytes, text_lines):
+# เพิ่มพารามิเตอร์ y_offset=0 เพื่อรับค่าการขยับแกน Y
+def generate_cover(bg_image_bytes, text_lines, y_offset=0):
     base_width, base_height = 1080, 1350
     
     try:
@@ -58,7 +59,8 @@ def generate_cover(bg_image_bytes, text_lines):
     else:
         bg = bg.resize((base_width, new_h), Image.Resampling.LANCZOS)
     
-    canvas.paste(bg, (0, 0))
+    # วางรูปโดยบวกค่า y_offset (+ คือเลื่อนลง, - คือเลื่อนขึ้น)
+    canvas.paste(bg, (0, y_offset))
     
     gradient = Image.new('RGBA', (base_width, base_height), (0,0,0,0))
     draw_grad = ImageDraw.Draw(gradient)
@@ -168,11 +170,12 @@ def generate_cover(bg_image_bytes, text_lines):
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     now = datetime.now()
     d_str = f"-{now.day} {thai_m[now.month-1]} {now.year + 543}-"
-    y_date_floor = 1060
+    y_date_floor = 1065 
+    
     try:
         f_date = ImageFont.truetype(font_path, 32)
         draw_stretched_text(canvas, (base_width/2, y_date_floor), d_str, font=f_date, fill="white", 
-                            stretch_ratio=1.15, anchor="ms")
+                            stretch_ratio=1.15, text_shadow=2, anchor="ms")
     except:
         draw.text((base_width/2, y_date_floor), d_str, fill="white", anchor="ms")
     
@@ -203,13 +206,48 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text(event):
-    user_states[event.source.user_id] = event.message.text.split('\n')
+    uid = event.source.user_id
+    text = event.message.text.strip()
+    
+    # 1. ตรวจสอบว่าผู้ใช้กำลังพิมพ์ตัวเลขเพื่อขยับรูปหรือไม่ (เช่น +50, -20)
+    if uid in user_states and user_states[uid].get('image_id'):
+        try:
+            # ลองแปลงข้อความเป็นตัวเลข (ถ้าผู้ใช้พิมพ์พาดหัวข่าวใหม่ โค้ดจะข้ามไปทำงานส่วนล่าง)
+            offset_change = int(text)
+            user_states[uid]['y_offset'] += offset_change
+            
+            # ดึงรูปภาพเดิมจากระบบของ LINE ด้วย image_id
+            content = line_bot_api.get_message_content(user_states[uid]['image_id'])
+            img_b = content.content
+            
+            # สร้างรูปใหม่โดยใส่ค่าการขยับ y_offset
+            res_img = generate_cover(img_b, user_states[uid]['texts'], y_offset=user_states[uid]['y_offset'])
+            url = upload_to_cloudinary(res_img)
+            
+            # ส่งรูปที่ขยับแล้วกลับไป พร้อมคำแนะนำ
+            line_bot_api.reply_message(
+                event.reply_token, 
+                [
+                    ImageSendMessage(original_content_url=url, preview_image_url=url),
+                    TextSendMessage(text=f"ขยับรูปให้แล้วครับ (พิกัดสะสม: {user_states[uid]['y_offset']})\nพิมพ์เลขอีกครั้งเพื่อปรับเพิ่ม/ลด หรือพิมพ์พาดหัวข่าวใหม่เพื่อเริ่มรูปถัดไป 📝")
+                ]
+            )
+            return
+        except ValueError:
+            pass # ถ้าไม่ใช่ตัวเลข ให้ข้ามไปถือว่าเป็นการพิมพ์พาดหัวข่าวใหม่
+            
+    # 2. หากเป็นการเริ่มใหม่ หรือพิมพ์พาดหัวข่าว ให้เก็บข้อมูลเป็นรูปแบบ Dictionary
+    user_states[uid] = {
+        'texts': event.message.text.split('\n'),
+        'image_id': None,
+        'y_offset': 0
+    }
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="รับทราบพาดหัวข่าวแล้วครับ! ส่งรูปประกอบข่าวมาได้เลย 🖼️"))
 
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image(event):
     uid = event.source.user_id
-    if uid not in user_states:
+    if uid not in user_states or not user_states[uid].get('texts'):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text="กรุณาพิมพ์หัวข้อข่าวก่อนส่งรูปภาพนะครับ"))
         return
     
@@ -217,14 +255,25 @@ def handle_image(event):
         content = line_bot_api.get_message_content(event.message.id)
         img_b = content.content
         
+        # บันทึก ID ของรูปภาพไว้สำหรับการย้ายพิกัดในภายหลัง และรีเซ็ตการขยับเป็น 0 เสมอ
+        user_states[uid]['image_id'] = event.message.id
+        user_states[uid]['y_offset'] = 0
+        
         # สร้างรูป
-        res_img = generate_cover(img_b, user_states[uid])
+        res_img = generate_cover(img_b, user_states[uid]['texts'], y_offset=0)
         
         # [แก้ไข] อัปโหลดผ่าน Cloudinary แทน ImgBB
         url = upload_to_cloudinary(res_img)
         
-        line_bot_api.reply_message(event.reply_token, ImageSendMessage(original_content_url=url, preview_image_url=url))
-        del user_states[uid]
+        # ส่งรูปกลับ พร้อมแสดงตัวเลือกให้พิมพ์ตัวเลขขยับรูป
+        line_bot_api.reply_message(
+            event.reply_token, 
+            [
+                ImageSendMessage(original_content_url=url, preview_image_url=url),
+                TextSendMessage(text="เสร็จเรียบร้อย! ✨\n\n[ตัวเลือกปรับแต่ง]\n- หากต้องการเลื่อนรูปพื้นหลังลง ให้พิมพ์เช่น: +50\n- หากต้องการเลื่อนรูปพื้นหลังขึ้น ให้พิมพ์เช่น: -50\n\nหรือพิมพ์พาดหัวข่าวใหม่เพื่อเริ่มทำรูปถัดไปได้เลยครับ")
+            ]
+        )
+        # นำคำสั่ง del user_states[uid] ออก เพื่อให้ระบบยังจำรูปไว้ปรับแก้ได้
     except Exception as e:
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาดในการอัปโหลดรูป: {str(e)}"))
 
