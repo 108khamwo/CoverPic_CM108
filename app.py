@@ -5,7 +5,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, ImageMessage, TextSendMessage, ImageSendMessage
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from datetime import datetime
 import cloudinary
 import cloudinary.uploader
@@ -46,6 +46,32 @@ def generate_cover(bg_image_bytes, text_lines, y_offset=0):
 
     canvas = Image.new('RGB', (base_width, base_height), color='black')
     
+    # ---------------------------------------------------------
+    # [ส่วนเพิ่มใหม่]: สร้างพื้นหลังแบบเบลอ (Blurred Background)
+    # ---------------------------------------------------------
+    bg_blur_w = base_width
+    bg_blur_h = int(bg.height * (base_width / bg.width))
+    
+    # ถ้ารูปยาวไม่พอดีกับความสูง canvas ให้ตัดขอบ (Crop) ให้เต็มพื้นที่
+    if bg_blur_h < base_height:
+        bg_blur_h = base_height
+        bg_blur_w = int(base_height * (bg.width / bg.height))
+    
+    bg_blur = bg.resize((bg_blur_w, bg_blur_h), Image.Resampling.LANCZOS)
+    
+    # จัดให้อยู่กึ่งกลาง
+    left_blur = (bg_blur_w - base_width) // 2
+    top_blur = (bg_blur_h - base_height) // 2
+    bg_blur = bg_blur.crop((left_blur, top_blur, left_blur + base_width, top_blur + base_height))
+    
+    # ทำเบลอหนักๆ (ค่ารัศมี 30)
+    bg_blur = bg_blur.filter(ImageFilter.GaussianBlur(radius=30))
+    
+    # วางพื้นหลังเบลอเป็นชั้นล่างสุด
+    canvas.paste(bg_blur, (0, 0))
+    # ---------------------------------------------------------
+
+    # เตรียมรูปหลักเพื่อวางทับแบบมีพิกัด
     new_w = base_width
     new_h = int(bg.height * (base_width / bg.width))
     
@@ -59,7 +85,7 @@ def generate_cover(bg_image_bytes, text_lines, y_offset=0):
     else:
         bg = bg.resize((base_width, new_h), Image.Resampling.LANCZOS)
     
-    # วางรูปโดยบวกค่า y_offset (+ คือเลื่อนลง, - คือเลื่อนขึ้น)
+    # วางรูปหลักทับพื้นหลังเบลอ โดยบวกค่า y_offset (+ คือเลื่อนลง, - คือเลื่อนขึ้น)
     canvas.paste(bg, (0, y_offset))
     
     gradient = Image.new('RGBA', (base_width, base_height), (0,0,0,0))
@@ -170,7 +196,7 @@ def generate_cover(bg_image_bytes, text_lines, y_offset=0):
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     now = datetime.now()
     d_str = f"-{now.day} {thai_m[now.month-1]} {now.year + 543}-"
-    y_date_floor = 1065 
+    y_date_floor = 1060 
     
     try:
         f_date = ImageFont.truetype(font_path, 32)
