@@ -8,6 +8,7 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, ImageMessage, TextSendMessage, ImageSendMessage
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from datetime import datetime
+import time
 import cloudinary
 import cloudinary.uploader
 
@@ -30,13 +31,89 @@ cloudinary.config(
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# ลิงก์กรอบรูป CM108
-FRAME_URL = "https://i.postimg.cc/CFn8kCvh/New-16-7-69.png"
+# ==========================================
+# รูปปกจาก GitHub (ใช้ URL เดิมได้แม้เปลี่ยนไฟล์รูปในภายหลัง)
+# ==========================================
+MAIN_COVER_URL = "https://raw.githubusercontent.com/108khamwo/CoverPic_CM108/main/cover-main.png"
+CHIANGMAI_OVERLAY_URL = "https://raw.githubusercontent.com/108khamwo/CoverPic_CM108/main/chiangmai-overlay.png"
+
+# ไฟล์สำรองในโปรเจกต์ กรณี GitHub โหลดไม่ได้ชั่วคราว
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MAIN_COVER_FALLBACK = os.path.join(BASE_DIR, "cover-main.png")
+CHIANGMAI_OVERLAY_FALLBACK = os.path.join(BASE_DIR, "chiangmai-overlay.png")
 
 user_states = {}
 
+
+# คำ/ชื่อพื้นที่ที่ใช้ช่วยตรวจว่าข่าวเกี่ยวข้องกับจังหวัดเชียงใหม่
+# ตั้งใจใช้เฉพาะคำที่ค่อนข้างชี้เฉพาะพื้นที่ เพื่อลดการติดป้ายผิดโดยไม่จำเป็น
+CHIANGMAI_LOCATION_KEYWORDS = [
+    # จังหวัด / เมือง
+    "เชียงใหม่", "จ.เชียงใหม่", "จังหวัดเชียงใหม่", "เมืองเชียงใหม่", "ตัวเมืองเชียงใหม่",
+
+    # 25 อำเภอของจังหวัดเชียงใหม่
+    "เมืองเชียงใหม่", "จอมทอง", "แม่แจ่ม", "เชียงดาว", "ดอยสะเก็ด",
+    "แม่แตง", "แม่ริม", "สะเมิง", "ฝาง", "แม่อาย", "พร้าว",
+    "สันป่าตอง", "สันกำแพง", "สันทราย", "หางดง", "ฮอด",
+    "ดอยเต่า", "อมก๋อย", "สารภี", "เวียงแหง", "ไชยปราการ",
+    "แม่วาง", "แม่ออน", "ดอยหล่อ", "กัลยาณิวัฒนา",
+
+    # จุด/สถานที่เชียงใหม่ที่พบในพาดหัวบ่อย
+    "ดอยสุเทพ", "ดอยอินทนนท์", "ท่าแพ", "ประตูท่าแพ", "คูเมือง",
+    "นิมมาน", "แม่โจ้", "ม่อนแจ่ม", "แม่กำปอง", "อ่างขาง",
+    "มหาวิทยาลัยเชียงใหม่", "มช.", "กาดหลวง", "เวียงกุมกาม",
+]
+
+
+def is_chiangmai_news(text_lines):
+    """ตรวจข่าวเชียงใหม่จากคำจังหวัด อำเภอ และสถานที่สำคัญในพาดหัว"""
+    combined = " ".join(str(line) for line in (text_lines or [])).strip().lower()
+    return any(keyword.lower() in combined for keyword in CHIANGMAI_LOCATION_KEYWORDS)
+
+
+def should_use_chiangmai_overlay(text_lines, mode="auto"):
+    """
+    mode = auto : ตรวจจากเนื้อหาพาดหัวอัตโนมัติ
+    mode = on   : บังคับแสดงแถบข่าวเชียงใหม่
+    mode = off  : บังคับไม่แสดงแถบข่าวเชียงใหม่
+    """
+    mode = (mode or "auto").lower()
+    if mode == "on":
+        return True
+    if mode == "off":
+        return False
+    return is_chiangmai_news(text_lines)
+
+
+def load_overlay_image(url, fallback_path=None):
+    """โหลด PNG จาก GitHub แบบกัน cache และ fallback ไปไฟล์ local หากโหลดไม่สำเร็จ"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 CM108-LineBot',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+    }
+
+    # เติม query ป้องกัน CDN/browser cache เมื่อมีการอัปโหลดรูปใหม่ทับชื่อเดิม
+    separator = '&' if '?' in url else '?'
+    fresh_url = f"{url}{separator}v={int(time.time())}"
+
+    try:
+        resp = requests.get(fresh_url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        return Image.open(BytesIO(resp.content)).convert("RGBA")
+    except Exception as e:
+        print(f"Remote overlay load failed: {url} -> {e}")
+
+    if fallback_path and os.path.exists(fallback_path):
+        try:
+            return Image.open(fallback_path).convert("RGBA")
+        except Exception as e:
+            print(f"Fallback overlay load failed: {fallback_path} -> {e}")
+
+    return None
+
 # รองรับการเลื่อนภาพทั้งแกน X/Y และซูมภาพ
-def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0):
+def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0, chiangmai_mode="auto"):
     base_width, base_height = 1080, 1350
     
     try:
@@ -116,17 +193,21 @@ def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0)
         
     canvas = Image.alpha_composite(canvas.convert('RGBA'), gradient)
     
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        resp = requests.get(FRAME_URL, headers=headers, timeout=15)
-        if resp.status_code == 200:
-            fr = Image.open(BytesIO(resp.content)).convert("RGBA")
-            fr = fr.resize((base_width, base_height), Image.Resampling.LANCZOS)
-            canvas = Image.alpha_composite(canvas, fr)
-    except Exception as e:
-        print(f"Frame Error: {e}")
+    # ชั้นปกหลัก: โหลดจาก GitHub ก่อน และใช้ไฟล์ local เป็น fallback
+    fr = load_overlay_image(MAIN_COVER_URL, MAIN_COVER_FALLBACK)
+    if fr is not None:
+        fr = fr.resize((base_width, base_height), Image.Resampling.LANCZOS)
+        canvas = Image.alpha_composite(canvas, fr)
 
-    font_path = "Prompt-Bold.ttf"
+    # ชั้นที่ 2 สำหรับข่าวเชียงใหม่
+    # โหมด auto จะตรวจชื่อจังหวัด/อำเภอ/สถานที่ในเชียงใหม่ และสามารถบังคับเปิด/ปิดได้จาก LINE
+    if should_use_chiangmai_overlay(text_lines, chiangmai_mode):
+        cm_overlay = load_overlay_image(CHIANGMAI_OVERLAY_URL, CHIANGMAI_OVERLAY_FALLBACK)
+        if cm_overlay is not None:
+            cm_overlay = cm_overlay.resize((base_width, base_height), Image.Resampling.LANCZOS)
+            canvas = Image.alpha_composite(canvas, cm_overlay)
+
+    font_path = os.path.join(BASE_DIR, "Prompt-Bold.ttf")
     draw = ImageDraw.Draw(canvas)
     
     def get_auto_font(text, default_size, max_width):
@@ -242,6 +323,40 @@ def callback():
         abort(400)
     return 'OK'
 
+def parse_chiangmai_cover_command(text):
+    """คำสั่งเลือกแถบข่าวเชียงใหม่แบบชัดเจน เพื่อใช้แก้กรณีตรวจอัตโนมัติไม่ตรง"""
+    cmd = text.strip().lower()
+    if cmd in ("ปกเชียงใหม่", "แถบเชียงใหม่", "ใช้ปกเชียงใหม่"):
+        return "on"
+    if cmd in ("ปกทั่วไป", "ไม่ใช้ปกเชียงใหม่", "ปิดแถบเชียงใหม่"):
+        return "off"
+    if cmd in ("ปกอัตโนมัติ", "ปกauto", "ปก auto", "แถบอัตโนมัติ"):
+        return "auto"
+    return None
+
+
+def parse_chiangmai_answer(text):
+    """อ่านคำตอบสั้น ๆ ของคำถามว่าเป็นข่าวเชียงใหม่หรือไม่"""
+    cmd = text.strip().lower()
+    yes_answers = {"ใช่", "ใช่ครับ", "ใช่ค่ะ", "เป็น", "เป็นครับ", "เป็นค่ะ"}
+    no_answers = {"ไม่ใช่", "ไม่ใช่ครับ", "ไม่ใช่ค่ะ", "ไม่", "ไม่ครับ", "ไม่ค่ะ"}
+    if cmd in yes_answers:
+        return True
+    if cmd in no_answers:
+        return False
+    return None
+
+
+def chiangmai_mode_text(state):
+    mode = (state or {}).get('chiangmai_mode', 'auto')
+    if mode == 'on':
+        return "ปกเชียงใหม่: เปิด (บังคับ)"
+    if mode == 'off':
+        return "ปกเชียงใหม่: ปิด (บังคับ)"
+    detected = is_chiangmai_news((state or {}).get('texts', []))
+    return "ปกเชียงใหม่: อัตโนมัติ - " + ("ตรวจพบข่าวเชียงใหม่" if detected else "ไม่พบเงื่อนไขเชียงใหม่")
+
+
 def parse_adjust_command(text):
     """แปลงคำสั่งปรับภาพจาก LINE ให้เป็นคำสั่งมาตรฐาน"""
     cmd = text.strip().lower()
@@ -262,25 +377,37 @@ def parse_adjust_command(text):
         if m:
             return (action, direction * abs(int(m.group(1))))
 
-    # ตั้งค่าซูมโดยตรง เช่น "ซูม 1.2" หรือ "zoom 1.2"
-    m = re.fullmatch(r'(?:ซูม|zoom)\s*([0-9]+(?:\.[0-9]+)?)\s*(?:x)?$', cmd)
+    # ซูมแบบเข้าใจง่าย โดยถือว่า 100% คือค่าปกติ
+    # ซูม1 / ซูม 2 / ... / ซูม20 = เพิ่มจากค่าปัจจุบันทีละเปอร์เซ็นต์
+    # ซูม90 / ซูม100 / ซูม110 = ตั้งค่าเป็นเปอร์เซ็นต์นั้นโดยตรง
+    # ถ้าระบุ x เช่น ซูม1.2x จะตั้งเป็น 1.2 เท่า (120%) สำหรับความเข้ากันได้
+    m = re.fullmatch(r'(?:ซูม|zoom)\s*([0-9]+(?:\.[0-9]+)?)\s*(x|%)?$', cmd)
     if m:
         value = float(m.group(1))
-        # ถ้าพิมพ์ 120 ให้ตีความเป็น 120% = 1.20 เท่า
-        if value > 10:
-            value /= 100.0
-        return ('zoom_set', value)
+        suffix = m.group(2)
 
-    # ซูมเข้า/ออกเป็นเปอร์เซ็นต์ เช่น "ซูมเข้า 10", "ซูมออก 10"
+        if suffix == 'x':
+            return ('zoom_set', value)
+        if suffix == '%':
+            return ('zoom_set', value / 100.0)
+
+        # ค่าน้อย ๆ ใช้เป็นการเพิ่มทีละเปอร์เซ็นต์ เช่น ซูม1 = +1%
+        if 0 < value <= 20:
+            return ('zoom_delta', value)
+
+        # ค่ามากกว่า 20 ให้ถือว่าเป็นเปอร์เซ็นต์เป้าหมาย เช่น ซูม110 = 110%
+        return ('zoom_set', value / 100.0)
+
+    # ซูมเข้า/ออกเป็นเปอร์เซ็นต์แบบเพิ่ม/ลดจากค่าปัจจุบัน
     m = re.fullmatch(r'(?:ซูมเข้า|zoom\s*in)\s*([0-9]+(?:\.[0-9]+)?)?\s*%?$', cmd)
     if m:
-        percent = float(m.group(1) or 10)
-        return ('zoom_percent', percent)
+        percent = float(m.group(1) or 1)
+        return ('zoom_delta', percent)
 
     m = re.fullmatch(r'(?:ซูมออก|zoom\s*out)\s*([0-9]+(?:\.[0-9]+)?)?\s*%?$', cmd)
     if m:
-        percent = float(m.group(1) or 10)
-        return ('zoom_percent', -percent)
+        percent = float(m.group(1) or 1)
+        return ('zoom_delta', -percent)
 
     if cmd in ('รีเซ็ต', 'reset', 'รีเซ็ตรูป', 'reset image'):
         return ('reset', None)
@@ -299,19 +426,21 @@ def render_current_cover(uid):
         x_offset=state.get('x_offset', 0),
         y_offset=state.get('y_offset', 0),
         zoom=state.get('zoom', 1.0),
+        chiangmai_mode=state.get('chiangmai_mode', 'auto'),
     )
 
 
 def adjustment_help_text(state=None):
-    # ข้อความช่วยจำแบบสั้น เพื่อไม่ให้แชต LINE รก
-    hint = "💡 ต้องการขยับภาพ พิมพ์ เช่น ซ้าย10 | ขวา10 | ขึ้น10 | ลง10 | ซูม110 | รีเซ็ต"
+    # แสดงค่าซูมเป็นเปอร์เซ็นต์ เพื่อให้เข้าใจง่าย: 100% คือค่าปกติ
+    hint = "💡 ต้องการขยับภาพ พิมพ์ เช่น ซ้าย10 | ขวา10 | ขึ้น10 | ลง10 | ซูม1 | ซูมออก1 | รีเซ็ต"
     if not state:
         return hint
 
+    zoom_percent = int(round(float(state.get('zoom', 1.0)) * 100))
     return (
         hint
         + f"\nตำแหน่งล่าสุด: X {state.get('x_offset', 0):+d} | "
-          f"Y {state.get('y_offset', 0):+d} | ซูม {state.get('zoom', 1.0):.2f}x"
+          f"Y {state.get('y_offset', 0):+d} | ซูม {zoom_percent}%"
     )
 
 
@@ -319,6 +448,53 @@ def adjustment_help_text(state=None):
 def handle_text(event):
     uid = event.source.user_id
     text = event.message.text.strip()
+
+    # ถ้าระบบกำลังรอคำตอบว่าเป็นข่าวเชียงใหม่หรือไม่ ให้รับ ใช่ / ไม่ใช่ ก่อน
+    if uid in user_states and user_states[uid].get('awaiting_chiangmai_answer'):
+        answer = parse_chiangmai_answer(text)
+        if answer is not None:
+            state = user_states[uid]
+            state['chiangmai_mode'] = 'on' if answer else 'off'
+            state['awaiting_chiangmai_answer'] = False
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="กรุณาส่งรูปประกอบข่าวมาได้เลย 🖼️")
+            )
+            return
+
+    # คำสั่งบังคับแถบข่าวเชียงใหม่ (ใช้ได้หลังพิมพ์พาดหัวแล้ว)
+    cover_mode = parse_chiangmai_cover_command(text)
+    if cover_mode is not None:
+        if uid not in user_states or not user_states[uid].get('texts'):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="กรุณาพิมพ์พาดหัวข่าวก่อน แล้วค่อยเลือก ปกเชียงใหม่ / ปกทั่วไป / ปกอัตโนมัติ")
+            )
+            return
+
+        state = user_states[uid]
+        state['chiangmai_mode'] = cover_mode
+
+        # ถ้ามีรูปอยู่แล้ว ให้สร้างภาพใหม่ทันทีด้วยโหมดที่เลือก
+        if state.get('image_id'):
+            try:
+                res_img = render_current_cover(uid)
+                url = upload_to_cloudinary(res_img)
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    [
+                        ImageSendMessage(original_content_url=url, preview_image_url=url),
+                        TextSendMessage(text=chiangmai_mode_text(state) + "\n" + adjustment_help_text(state))
+                    ]
+                )
+            except Exception as e:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=f"เกิดข้อผิดพลาดขณะเปลี่ยนปก: {str(e)}")
+                )
+        else:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chiangmai_mode_text(state)))
+        return
 
     # 1. ถ้ามีรูปค้างอยู่ ให้ลองตีความเป็นคำสั่งปรับตำแหน่ง/ซูมก่อน
     if uid in user_states and user_states[uid].get('image_id'):
@@ -336,8 +512,9 @@ def handle_text(event):
                 state['y_offset'] += int(value)
             elif action == 'zoom_set':
                 state['zoom'] = max(0.25, min(float(value), 4.0))
-            elif action == 'zoom_percent':
-                state['zoom'] *= (1.0 + float(value) / 100.0)
+            elif action == 'zoom_delta':
+                # เพิ่ม/ลดเป็นเปอร์เซ็นต์พอยต์จากค่าปัจจุบัน เช่น 100% + 2 = 102%
+                state['zoom'] += float(value) / 100.0
                 state['zoom'] = max(0.25, min(state['zoom'], 4.0))
             elif action == 'reset':
                 state['x_offset'] = 0
@@ -362,14 +539,30 @@ def handle_text(event):
             return
 
     # 2. หากไม่ใช่คำสั่งปรับภาพ ให้ถือว่าเป็นพาดหัวข่าวใหม่
+    texts = event.message.text.split('\n')
+    detected_chiangmai = is_chiangmai_news(texts)
     user_states[uid] = {
-        'texts': event.message.text.split('\n'),
+        'texts': texts,
         'image_id': None,
         'x_offset': 0,
         'y_offset': 0,
         'zoom': 1.0,
+        # ถ้าตรวจพบเชียงใหม่ ใช้แถบทันที / ถ้าไม่พบ รอให้ผู้ใช้ยืนยัน
+        'chiangmai_mode': 'on' if detected_chiangmai else 'auto',
+        'awaiting_chiangmai_answer': not detected_chiangmai,
     }
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="รับทราบพาดหัวข่าวแล้วครับ! ส่งรูปประกอบข่าวมาได้เลย 🖼️"))
+
+    if detected_chiangmai:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="กรุณาส่งรูปประกอบข่าวมาได้เลย 🖼️")
+        )
+    else:
+        # ตาม UX ที่กำหนด: ถามสั้นเพียงประโยคเดียว
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="เป็นข่าวเชียงใหม่หรือไม่?")
+        )
 
 
 @handler.add(MessageEvent, message=ImageMessage)
@@ -377,6 +570,10 @@ def handle_image(event):
     uid = event.source.user_id
     if uid not in user_states or not user_states[uid].get('texts'):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text="กรุณาพิมพ์หัวข้อข่าวก่อนส่งรูปภาพนะครับ"))
+        return
+
+    if user_states[uid].get('awaiting_chiangmai_answer'):
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="เป็นข่าวเชียงใหม่หรือไม่?"))
         return
 
     try:
@@ -395,6 +592,7 @@ def handle_image(event):
             x_offset=0,
             y_offset=0,
             zoom=1.0,
+            chiangmai_mode=user_states[uid].get('chiangmai_mode', 'auto'),
         )
         url = upload_to_cloudinary(res_img)
 
