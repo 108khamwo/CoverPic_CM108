@@ -304,13 +304,13 @@ def render_current_cover(uid):
 
 def adjustment_help_text(state=None):
     # ข้อความช่วยจำแบบสั้น เพื่อไม่ให้แชต LINE รก
-    hint = "💡 ขยับภาพ: ซ้าย50 | ขวา50 | ขึ้น50 | ลง50 | ซูม120 | รีเซ็ต"
+    hint = "💡 ต้องการขยับภาพ พิมพ์ เช่น ซ้าย10 | ขวา10 | ขึ้น10 | ลง10 | ซูม110 | รีเซ็ต"
     if not state:
         return hint
 
     return (
         hint
-        + f"\nตำแหน่ง: X {state.get('x_offset', 0):+d} | "
+        + f"\nตำแหน่งล่าสุด: X {state.get('x_offset', 0):+d} | "
           f"Y {state.get('y_offset', 0):+d} | ซูม {state.get('zoom', 1.0):.2f}x"
     )
 
@@ -402,7 +402,7 @@ def handle_image(event):
             event.reply_token,
             [
                 ImageSendMessage(original_content_url=url, preview_image_url=url),
-                TextSendMessage(text="เสร็จเรียบร้อย! ✨\n\n" + adjustment_help_text(user_states[uid]) + "\n\nหรือพิมพ์พาดหัวข่าวใหม่เพื่อเริ่มรูปถัดไปได้เลยครับ")
+                TextSendMessage(text="เสร็จเรียบร้อย! ✨\n\n" + adjustment_help_text(user_states[uid]))
             ]
         )
     except Exception as e:
