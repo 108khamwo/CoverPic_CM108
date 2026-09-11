@@ -193,19 +193,20 @@ def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0,
         
     canvas = Image.alpha_composite(canvas.convert('RGBA'), gradient)
     
-    # ชั้นปกหลัก: โหลดจาก GitHub ก่อน และใช้ไฟล์ local เป็น fallback
-    fr = load_overlay_image(MAIN_COVER_URL, MAIN_COVER_FALLBACK)
-    if fr is not None:
-        fr = fr.resize((base_width, base_height), Image.Resampling.LANCZOS)
-        canvas = Image.alpha_composite(canvas, fr)
-
-    # ชั้นที่ 2 สำหรับข่าวเชียงใหม่
+    # ชั้นข่าวเชียงใหม่: ต้องอยู่ด้านหลังปกหลัก
     # โหมด auto จะตรวจชื่อจังหวัด/อำเภอ/สถานที่ในเชียงใหม่ และสามารถบังคับเปิด/ปิดได้จาก LINE
     if should_use_chiangmai_overlay(text_lines, chiangmai_mode):
         cm_overlay = load_overlay_image(CHIANGMAI_OVERLAY_URL, CHIANGMAI_OVERLAY_FALLBACK)
         if cm_overlay is not None:
             cm_overlay = cm_overlay.resize((base_width, base_height), Image.Resampling.LANCZOS)
             canvas = Image.alpha_composite(canvas, cm_overlay)
+
+    # ปกหลักต้องซ้อนทับ chiangmai-overlay.png เสมอ
+    # โหลดจาก GitHub ก่อน และใช้ไฟล์ local เป็น fallback
+    fr = load_overlay_image(MAIN_COVER_URL, MAIN_COVER_FALLBACK)
+    if fr is not None:
+        fr = fr.resize((base_width, base_height), Image.Resampling.LANCZOS)
+        canvas = Image.alpha_composite(canvas, fr)
 
     font_path = os.path.join(BASE_DIR, "Prompt-Bold.ttf")
     draw = ImageDraw.Draw(canvas)
