@@ -449,59 +449,15 @@ def handle_text(event):
     uid = event.source.user_id
     text = event.message.text.strip()
 
-    # ถ้าระบบกำลังรอคำตอบว่าเป็นข่าวเชียงใหม่หรือไม่ ให้รับ ใช่ / ไม่ใช่ ก่อน
-    if uid in user_states and user_states[uid].get('awaiting_chiangmai_answer'):
-        answer = parse_chiangmai_answer(text)
-        if answer is not None:
-            state = user_states[uid]
-            state['chiangmai_mode'] = 'on' if answer else 'off'
-            state['awaiting_chiangmai_answer'] = False
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="กรุณาส่งรูปประกอบข่าวมาได้เลย 🖼️")
-            )
-            return
-
-    # คำสั่งบังคับแถบข่าวเชียงใหม่ (ใช้ได้หลังพิมพ์พาดหัวแล้ว)
-    cover_mode = parse_chiangmai_cover_command(text)
-    if cover_mode is not None:
-        if uid not in user_states or not user_states[uid].get('texts'):
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="กรุณาพิมพ์พาดหัวข่าวก่อน แล้วค่อยเลือก ปกเชียงใหม่ / ปกทั่วไป / ปกอัตโนมัติ")
-            )
-            return
-
-        state = user_states[uid]
-        state['chiangmai_mode'] = cover_mode
-
-        # ถ้ามีรูปอยู่แล้ว ให้สร้างภาพใหม่ทันทีด้วยโหมดที่เลือก
-        if state.get('image_id'):
-            try:
-                res_img = render_current_cover(uid)
-                url = upload_to_cloudinary(res_img)
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    [
-                        ImageSendMessage(original_content_url=url, preview_image_url=url),
-                        TextSendMessage(text=chiangmai_mode_text(state) + "\n" + adjustment_help_text(state))
-                    ]
-                )
-            except Exception as e:
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text=f"เกิดข้อผิดพลาดขณะเปลี่ยนปก: {str(e)}")
-                )
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chiangmai_mode_text(state)))
-        return
-
-    # 1. ถ้ามีรูปค้างอยู่ ให้ลองตีความเป็นคำสั่งปรับตำแหน่ง/ซูมก่อน
+    # 1. ถ้ามีรูปปกสร้างแล้ว ให้คำสั่งปรับภาพทำงานก่อนทุกเงื่อนไข
+    # ป้องกันคำสั่ง เช่น ซ้าย20 / ซูม1 ถูกตีความเป็นคำตอบเรื่องข่าวเชียงใหม่
     if uid in user_states and user_states[uid].get('image_id'):
         command = parse_adjust_command(text)
         if command:
             action, value = command
             state = user_states[uid]
+            # เมื่อมีภาพสร้างสำเร็จแล้ว ไม่ควรค้างสถานะรอคำตอบเชียงใหม่
+            state['awaiting_chiangmai_answer'] = False
             state.setdefault('x_offset', 0)
             state.setdefault('y_offset', 0)
             state.setdefault('zoom', 1.0)
@@ -538,7 +494,62 @@ def handle_text(event):
                 )
             return
 
-    # 2. หากไม่ใช่คำสั่งปรับภาพ ให้ถือว่าเป็นพาดหัวข่าวใหม่
+    # 2. ถ้าระบบกำลังรอคำตอบว่าเป็นข่าวเชียงใหม่หรือไม่ ให้รับ ใช่ / ไม่ใช่
+    if uid in user_states and user_states[uid].get('awaiting_chiangmai_answer'):
+        answer = parse_chiangmai_answer(text)
+        if answer is not None:
+            state = user_states[uid]
+            state['chiangmai_mode'] = 'on' if answer else 'off'
+            state['awaiting_chiangmai_answer'] = False
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="กรุณาส่งรูปประกอบข่าวมาได้เลย 🖼️")
+            )
+            return
+
+        # ระหว่างรอคำตอบ ไม่เอาข้อความอื่นไปสร้างเป็นพาดหัวใหม่โดยไม่ตั้งใจ
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="เป็นข่าวเชียงใหม่หรือไม่?")
+        )
+        return
+
+    # 3. คำสั่งบังคับแถบข่าวเชียงใหม่ (ใช้ได้หลังพิมพ์พาดหัวแล้ว)
+    cover_mode = parse_chiangmai_cover_command(text)
+    if cover_mode is not None:
+        if uid not in user_states or not user_states[uid].get('texts'):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="กรุณาพิมพ์พาดหัวข่าวก่อน แล้วค่อยเลือก ปกเชียงใหม่ / ปกทั่วไป / ปกอัตโนมัติ")
+            )
+            return
+
+        state = user_states[uid]
+        state['chiangmai_mode'] = cover_mode
+        state['awaiting_chiangmai_answer'] = False
+
+        # ถ้ามีรูปอยู่แล้ว ให้สร้างภาพใหม่ทันทีด้วยโหมดที่เลือก
+        if state.get('image_id'):
+            try:
+                res_img = render_current_cover(uid)
+                url = upload_to_cloudinary(res_img)
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    [
+                        ImageSendMessage(original_content_url=url, preview_image_url=url),
+                        TextSendMessage(text=chiangmai_mode_text(state) + "\n" + adjustment_help_text(state))
+                    ]
+                )
+            except Exception as e:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=f"เกิดข้อผิดพลาดขณะเปลี่ยนปก: {str(e)}")
+                )
+        else:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chiangmai_mode_text(state)))
+        return
+
+    # 4. หากไม่ใช่คำสั่งใด ให้ถือว่าเป็นพาดหัวข่าวใหม่
     texts = event.message.text.split('\n')
     detected_chiangmai = is_chiangmai_news(texts)
     user_states[uid] = {
@@ -558,7 +569,6 @@ def handle_text(event):
             TextSendMessage(text="กรุณาส่งรูปประกอบข่าวมาได้เลย 🖼️")
         )
     else:
-        # ตาม UX ที่กำหนด: ถามสั้นเพียงประโยคเดียว
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="เป็นข่าวเชียงใหม่หรือไม่?")
@@ -585,6 +595,8 @@ def handle_image(event):
         user_states[uid]['x_offset'] = 0
         user_states[uid]['y_offset'] = 0
         user_states[uid]['zoom'] = 1.0
+        # เมื่อมาถึงขั้นสร้างภาพแล้ว ให้ยืนยันว่าไม่มีสถานะคำถามเชียงใหม่ค้างอยู่
+        user_states[uid]['awaiting_chiangmai_answer'] = False
 
         res_img = generate_cover(
             img_b,
