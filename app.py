@@ -358,19 +358,20 @@ def chiangmai_mode_text(state):
 
 
 def parse_adjust_command(text):
-    """แปลงคำสั่งปรับภาพจาก LINE ให้เป็นคำสั่งมาตรฐาน"""
+    """แปลงคำสั่งปรับภาพ 1 คำสั่งให้เป็นคำสั่งมาตรฐาน"""
     cmd = text.strip().lower()
 
     # คำสั่งเดิม: +50 / -50 / 50 = ปรับแกน Y เหมือนเวอร์ชันเดิม
     if re.fullmatch(r'[+-]?\d+', cmd):
         return ('y_delta', int(cmd))
 
-    # คำสั่งเลื่อนภาพแบบอ่านง่าย รองรับทั้งมี/ไม่มีช่องว่าง เช่น ซ้าย50, ซ้าย 50
+    # คำสั่งเลื่อนภาพ รองรับทั้งมี/ไม่มีช่องว่าง
+    # เพิ่ม alias "บน" = ขึ้น และ "ล่าง" = ลง ให้พิมพ์ได้เป็นธรรมชาติขึ้น
     move_patterns = [
         (r'^(?:ซ้าย|left)\s*([+-]?\d+)\s*(?:px)?$', 'x_delta', -1),
         (r'^(?:ขวา|right)\s*([+-]?\d+)\s*(?:px)?$', 'x_delta', 1),
-        (r'^(?:ขึ้น|up)\s*([+-]?\d+)\s*(?:px)?$', 'y_delta', -1),
-        (r'^(?:ลง|down)\s*([+-]?\d+)\s*(?:px)?$', 'y_delta', 1),
+        (r'^(?:ขึ้น|บน|up)\s*([+-]?\d+)\s*(?:px)?$', 'y_delta', -1),
+        (r'^(?:ลง|ล่าง|down)\s*([+-]?\d+)\s*(?:px)?$', 'y_delta', 1),
     ]
     for pattern, action, direction in move_patterns:
         m = re.fullmatch(pattern, cmd)
@@ -378,9 +379,9 @@ def parse_adjust_command(text):
             return (action, direction * abs(int(m.group(1))))
 
     # ซูมแบบเข้าใจง่าย โดยถือว่า 100% คือค่าปกติ
-    # ซูม1 / ซูม 2 / ... / ซูม20 = เพิ่มจากค่าปัจจุบันทีละเปอร์เซ็นต์
+    # ซูม1 ... ซูม20 = เพิ่มจากค่าปัจจุบันทีละเปอร์เซ็นต์
     # ซูม90 / ซูม100 / ซูม110 = ตั้งค่าเป็นเปอร์เซ็นต์นั้นโดยตรง
-    # ถ้าระบุ x เช่น ซูม1.2x จะตั้งเป็น 1.2 เท่า (120%) สำหรับความเข้ากันได้
+    # ซูม1.2x = ตั้งเป็น 1.2 เท่า (120%)
     m = re.fullmatch(r'(?:ซูม|zoom)\s*([0-9]+(?:\.[0-9]+)?)\s*(x|%)?$', cmd)
     if m:
         value = float(m.group(1))
@@ -391,11 +392,8 @@ def parse_adjust_command(text):
         if suffix == '%':
             return ('zoom_set', value / 100.0)
 
-        # ค่าน้อย ๆ ใช้เป็นการเพิ่มทีละเปอร์เซ็นต์ เช่น ซูม1 = +1%
         if 0 < value <= 20:
             return ('zoom_delta', value)
-
-        # ค่ามากกว่า 20 ให้ถือว่าเป็นเปอร์เซ็นต์เป้าหมาย เช่น ซูม110 = 110%
         return ('zoom_set', value / 100.0)
 
     # ซูมเข้า/ออกเป็นเปอร์เซ็นต์แบบเพิ่ม/ลดจากค่าปัจจุบัน
@@ -415,6 +413,88 @@ def parse_adjust_command(text):
     return None
 
 
+def parse_adjust_commands(text):
+    """
+    รองรับ 1 หรือ 2 คำสั่งในข้อความเดียว เช่น:
+      ซ้าย20 ขึ้น10
+      ขวา10 ซูม1
+      ซ้าย20 | บน10
+
+    คืนค่า (commands, error_message)
+    - commands = list ของ (action, value)
+    - ถ้าไม่ใช่ข้อความคำสั่งปรับภาพเลย จะคืน (None, None)
+    """
+    cmd = text.strip().lower()
+    if not cmd:
+        return None, None
+
+    # กรณีคำสั่งเดียว ใช้ parser เดิมก่อน เพื่อคง compatibility
+    single = parse_adjust_command(cmd)
+    if single:
+        return [single], None
+
+    # รองรับคำว่า "และ" รวมถึงตัวคั่น | , ; /
+    work = re.sub(r'\s+และ\s+', ' ', cmd)
+
+    token_pattern = re.compile(
+        r'(?:'
+        r'(?:ซ้าย|left|ขวา|right|ขึ้น|บน|up|ลง|ล่าง|down)\s*[+-]?\d+\s*(?:px)?'
+        r'|(?:ซูมเข้า|zoom\s*in|ซูมออก|zoom\s*out)\s*(?:[0-9]+(?:\.[0-9]+)?)?\s*%?'
+        r'|(?:ซูม|zoom)\s*[0-9]+(?:\.[0-9]+)?\s*(?:x|%)?'
+        r'|(?:รีเซ็ต|reset|รีเซ็ตรูป|reset\s*image)'
+        r')',
+        re.IGNORECASE,
+    )
+
+    matches = list(token_pattern.finditer(work))
+    if not matches:
+        # ถ้ามีคำขึ้นต้นที่ดูเหมือนคำสั่งปรับภาพ ให้แจ้งว่ารูปแบบไม่ถูกต้อง
+        if re.search(r'(ซ้าย|ขวา|ขึ้น|บน|ลง|ล่าง|ซูม|รีเซ็ต|left|right|up|down|zoom|reset)', work, re.I):
+            return None, 'ไม่เข้าใจคำสั่งปรับภาพครับ\nตัวอย่าง: ซ้าย20 ขึ้น10'
+        return None, None
+
+    # ตรวจว่าระหว่าง token มีแค่ช่องว่างหรือตัวคั่นที่อนุญาต
+    leftovers = []
+    last = 0
+    for m in matches:
+        leftovers.append(work[last:m.start()])
+        last = m.end()
+    leftovers.append(work[last:])
+    leftover_text = ''.join(leftovers)
+    if re.sub(r'[\s|,;/]+', '', leftover_text):
+        return None, 'ไม่เข้าใจคำสั่งปรับภาพครับ\nตัวอย่าง: ซ้าย20 ขึ้น10'
+
+    if len(matches) > 2:
+        return None, 'สั่งปรับภาพได้สูงสุด 2 คำสั่งต่อครั้งครับ\nตัวอย่าง: ซ้าย20 ขึ้น10'
+
+    commands = []
+    for m in matches:
+        parsed = parse_adjust_command(m.group(0))
+        if not parsed:
+            return None, 'ไม่เข้าใจคำสั่งปรับภาพครับ\nตัวอย่าง: ซ้าย20 ขึ้น10'
+        commands.append(parsed)
+
+    # รีเซ็ตควรใช้เดี่ยว ๆ เพื่อไม่ให้ความหมายกำกวม
+    if len(commands) > 1 and any(action == 'reset' for action, _ in commands):
+        return None, 'คำสั่ง รีเซ็ต ต้องใช้เดี่ยว ๆ ครับ'
+
+    # ห้ามคำสั่งแกนเดียวกันที่สวนทางกัน
+    def has_opposite(action_name):
+        values = [value for action, value in commands if action == action_name and value is not None]
+        return any(v < 0 for v in values) and any(v > 0 for v in values)
+
+    if has_opposite('x_delta') or has_opposite('y_delta') or has_opposite('zoom_delta'):
+        return None, (
+            'ไม่สามารถใช้คำสั่งที่หักล้างกันในข้อความเดียวได้ครับ\n'
+            'เช่น ซ้าย10 ขวา10 | ขึ้น10 ลง10 | ซูม1 ซูมออก1'
+        )
+
+    # ถ้าตั้งค่าซูมตรง ๆ 2 ครั้งในข้อความเดียว ให้ปฏิเสธเพราะปลายทางกำกวม
+    if sum(1 for action, _ in commands if action == 'zoom_set') > 1:
+        return None, 'กรุณากำหนดค่าซูมเพียง 1 ครั้งต่อข้อความครับ'
+
+    return commands, None
+
 def render_current_cover(uid):
     """สร้างปกใหม่จากสถานะล่าสุดของผู้ใช้"""
     state = user_states[uid]
@@ -432,7 +512,7 @@ def render_current_cover(uid):
 
 def adjustment_help_text(state=None):
     # แสดงค่าซูมเป็นเปอร์เซ็นต์ เพื่อให้เข้าใจง่าย: 100% คือค่าปกติ
-    hint = "💡 ต้องการขยับภาพ พิมพ์ เช่น ซ้าย10 | ขวา10 | ขึ้น10 | ลง10 | ซูม1 | ซูมออก1 | รีเซ็ต"
+    hint = "💡 ขยับภาพได้สูงสุด 2 คำสั่ง เช่น ซ้าย20 ขึ้น10 | ขวา10 ซูม1 | ซูมออก1 | รีเซ็ต"
     if not state:
         return hint
 
@@ -450,11 +530,18 @@ def handle_text(event):
     text = event.message.text.strip()
 
     # 1. ถ้ามีรูปปกสร้างแล้ว ให้คำสั่งปรับภาพทำงานก่อนทุกเงื่อนไข
-    # ป้องกันคำสั่ง เช่น ซ้าย20 / ซูม1 ถูกตีความเป็นคำตอบเรื่องข่าวเชียงใหม่
+    # รองรับสูงสุด 2 คำสั่งในข้อความเดียว เช่น ซ้าย20 ขึ้น10 / ขวา10 ซูม1
     if uid in user_states and user_states[uid].get('image_id'):
-        command = parse_adjust_command(text)
-        if command:
-            action, value = command
+        commands, adjust_error = parse_adjust_commands(text)
+
+        if adjust_error:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=adjust_error)
+            )
+            return
+
+        if commands:
             state = user_states[uid]
             # เมื่อมีภาพสร้างสำเร็จแล้ว ไม่ควรค้างสถานะรอคำตอบเชียงใหม่
             state['awaiting_chiangmai_answer'] = False
@@ -462,20 +549,22 @@ def handle_text(event):
             state.setdefault('y_offset', 0)
             state.setdefault('zoom', 1.0)
 
-            if action == 'x_delta':
-                state['x_offset'] += int(value)
-            elif action == 'y_delta':
-                state['y_offset'] += int(value)
-            elif action == 'zoom_set':
-                state['zoom'] = max(0.25, min(float(value), 4.0))
-            elif action == 'zoom_delta':
-                # เพิ่ม/ลดเป็นเปอร์เซ็นต์พอยต์จากค่าปัจจุบัน เช่น 100% + 2 = 102%
-                state['zoom'] += float(value) / 100.0
-                state['zoom'] = max(0.25, min(state['zoom'], 4.0))
-            elif action == 'reset':
-                state['x_offset'] = 0
-                state['y_offset'] = 0
-                state['zoom'] = 1.0
+            # ทำทุกคำสั่งตามลำดับ แล้ว render เพียงครั้งเดียว
+            for action, value in commands:
+                if action == 'x_delta':
+                    state['x_offset'] += int(value)
+                elif action == 'y_delta':
+                    state['y_offset'] += int(value)
+                elif action == 'zoom_set':
+                    state['zoom'] = max(0.25, min(float(value), 4.0))
+                elif action == 'zoom_delta':
+                    # เพิ่ม/ลดเป็นเปอร์เซ็นต์พอยต์ เช่น 100% + 2 = 102%
+                    state['zoom'] += float(value) / 100.0
+                    state['zoom'] = max(0.25, min(state['zoom'], 4.0))
+                elif action == 'reset':
+                    state['x_offset'] = 0
+                    state['y_offset'] = 0
+                    state['zoom'] = 1.0
 
             try:
                 res_img = render_current_cover(uid)
