@@ -179,15 +179,24 @@ def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0,
     
     gradient = Image.new('RGBA', (base_width, base_height), (0,0,0,0))
     draw_grad = ImageDraw.Draw(gradient)
-    
-    fade_start = 550
-    fade_end = 715
+
+    # ถ้ามี 4 บรรทัด ให้ขยับแถบดำ/ไล่ดำขึ้นเพื่อรองรับข้อความเพิ่ม
+    has_line4 = len(text_lines) > 3 and str(text_lines[3]).strip()
+    if has_line4:
+        fade_start = 470
+        fade_end = 635
+        gradient_power = 2.35
+    else:
+        fade_start = 550
+        fade_end = 715
+        gradient_power = 2.5
+
     for y in range(fade_start, base_height):
         if y >= fade_end:
             alpha = 255
         else:
             ratio = (y - fade_start) / (fade_end - fade_start)
-            alpha = int((ratio ** 2.5) * 255)
+            alpha = int((ratio ** gradient_power) * 255)
         alpha = min(255, max(0, alpha))
         draw_grad.line([(0, y), (base_width, y)], fill=(0, 0, 0, alpha))
         
@@ -247,10 +256,13 @@ def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0,
         
         canvas_img.alpha_composite(stretched, (paste_x, paste_y))
 
+    # ถ้ามี 4 บรรทัด ให้คงระยะห่างบรรทัด 1-2-3 เดิม แต่ขยับทั้งชุดขึ้น
+    y_shift = -85 if has_line4 else 0
+
     t1 = text_lines[0] if len(text_lines) > 0 else ""
     if t1:
         f_t1 = get_auto_font(t1, 110, 970) 
-        y1_floor = 730 
+        y1_floor = 730 + y_shift
         draw_stretched_text(canvas, (base_width/2, y1_floor), t1, font=f_t1, fill="#4bfafc", 
                             stretch_ratio=1.08, stroke_width=5, stroke_fill="black", anchor="ms")
     
@@ -258,7 +270,7 @@ def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0,
     if t2:
         f_t2 = get_auto_font(t2, 90, 960) 
         size2 = getattr(f_t2, "size", 100)
-        y2_floor = 870 
+        y2_floor = 870 + y_shift
         
         bbox = draw.textbbox((base_width/2, y2_floor), t2, font=f_t2, anchor="ms")
         
@@ -275,7 +287,7 @@ def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0,
         draw.rounded_rectangle([(bbox[0]-pad_x, box_top), (bbox[2]+pad_x, box_bottom)], 
                                radius=16, fill="#0bc8fa", outline="black", width=5)
         
-        y2_text_floor = 840 + (size2 * 0.3)
+        y2_text_floor = (840 + y_shift) + (size2 * 0.3)
         
         draw_stretched_text(canvas, (base_width/2, y2_text_floor), t2, font=f_t2, fill="#ffffff", 
                             stretch_ratio=1.08, text_shadow=4, stroke_width=4, stroke_fill="black", anchor="ms")
@@ -283,14 +295,21 @@ def generate_cover(bg_image_bytes, text_lines, x_offset=0, y_offset=0, zoom=1.0,
     t3 = text_lines[2] if len(text_lines) > 2 else ""
     if t3:
         f_t3 = get_auto_font(t3, 63, 960) 
-        y3_floor = 1005 
+        y3_floor = 1005 + y_shift
         draw_stretched_text(canvas, (base_width/2, y3_floor), t3, font=f_t3, fill="#ff9012", 
+                            stretch_ratio=1.08, stroke_width=3, stroke_fill="black", anchor="ms")
+
+    t4 = text_lines[3] if len(text_lines) > 3 else ""
+    if t4:
+        f_t4 = get_auto_font(t4, 56, 960)
+        y4_floor = 1005
+        draw_stretched_text(canvas, (base_width/2, y4_floor), t4, font=f_t4, fill="#ff9012",
                             stretch_ratio=1.08, stroke_width=3, stroke_fill="black", anchor="ms")
 
     thai_m = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     now = datetime.now()
     d_str = f"-{now.day} {thai_m[now.month-1]} {now.year + 543}-"
-    y_date_floor = 1060 
+    y_date_floor = 1060 if has_line4 else 1060
     
     try:
         f_date = ImageFont.truetype(font_path, 32)
