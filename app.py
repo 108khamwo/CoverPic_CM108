@@ -468,9 +468,7 @@ def parse_adjust_commands(text):
 
     matches = list(token_pattern.finditer(work))
     if not matches:
-        # ถ้ามีคำขึ้นต้นที่ดูเหมือนคำสั่งปรับภาพ ให้แจ้งว่ารูปแบบไม่ถูกต้อง
-        if re.search(r'(ซ้าย|ขวา|ขึ้น|บน|ลง|ล่าง|ซูม|รีเซ็ต|left|right|up|down|zoom|reset)', work, re.I):
-            return None, 'ไม่เข้าใจคำสั่งปรับภาพครับ\nตัวอย่าง: ซ้าย20 ขึ้น10'
+        # ไม่มีคำสั่งที่สมบูรณ์เลย ให้ถือว่าเป็นข้อความ/พาดหัว ไม่ใช่คำสั่งปรับภาพ
         return None, None
 
     # ตรวจว่าระหว่าง token มีแค่ช่องว่างหรือตัวคั่นที่อนุญาต
@@ -482,7 +480,8 @@ def parse_adjust_commands(text):
     leftovers.append(work[last:])
     leftover_text = ''.join(leftovers)
     if re.sub(r'[\s|,;/]+', '', leftover_text):
-        return None, 'ไม่เข้าใจคำสั่งปรับภาพครับ\nตัวอย่าง: ซ้าย20 ขึ้น10'
+        # มีข้อความอื่นปนอยู่ แปลว่าเป็นข้อความ/พาดหัว ไม่ใช่ชุดคำสั่งล้วน ๆ
+        return None, None
 
     if len(matches) > 2:
         return None, 'สั่งปรับภาพได้สูงสุด 2 คำสั่งต่อครั้งครับ\nตัวอย่าง: ซ้าย20 ขึ้น10'
@@ -547,9 +546,37 @@ def adjustment_help_text(state=None):
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text(event):
     uid = event.source.user_id
-    text = event.message.text.strip()
+    raw_text = event.message.text
+    text = raw_text.strip()
 
-    # 1. ถ้ามีรูปปกสร้างแล้ว ให้คำสั่งปรับภาพทำงานก่อนทุกเงื่อนไข
+    # 0. พาดหัวหลายบรรทัดต้องมีสิทธิ์ก่อนคำสั่งปรับภาพเสมอ
+    # ป้องกันคำในเนื้อข่าว เช่น "ขึ้น", "ลง", "ซ้าย", "ขวา" ถูกตีความเป็นคำสั่ง
+    headline_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    if len(headline_lines) >= 2:
+        detected_chiangmai = is_chiangmai_news(headline_lines)
+        user_states[uid] = {
+            'texts': headline_lines,
+            'image_id': None,
+            'x_offset': 0,
+            'y_offset': 0,
+            'zoom': 1.0,
+            'chiangmai_mode': 'on' if detected_chiangmai else 'auto',
+            'awaiting_chiangmai_answer': not detected_chiangmai,
+        }
+
+        if detected_chiangmai:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="กรุณาส่งรูปประกอบข่าวมาได้เลย 🖼️")
+            )
+        else:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="เป็นข่าวเชียงใหม่หรือไม่?")
+            )
+        return
+
+    # 1. ถ้ามีรูปปกสร้างแล้ว ให้คำสั่งปรับภาพทำงานก่อนเงื่อนไขข้อความบรรทัดเดียว
     # รองรับสูงสุด 2 คำสั่งในข้อความเดียว เช่น ซ้าย20 ขึ้น10 / ขวา10 ซูม1
     if uid in user_states and user_states[uid].get('image_id'):
         commands, adjust_error = parse_adjust_commands(text)
